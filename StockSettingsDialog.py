@@ -28,7 +28,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         hLayout1 = QtWidgets.QHBoxLayout()
         
         # Table for stocks
-        self.colHeadStrs = ["Symbol", "", "Holding", "Cost \xA3", ""]
+        self.colHeadStrs = ["Symbol", "", "Holding", "Cost/Share (p)", ""]
         self.colDefs = ["symbol", "", "holding", "cost", ""]
         self.colIsFloat = [False,False,True,True,False]
         self.table = QtWidgets.QTableWidget()
@@ -56,7 +56,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         rowIdx = 0
         stockHolding = self.stockHoldings.getStockHolding(False)
         for stk in stockHolding:
-            self.createRowContent(self.table, rowIdx, stk[self.colDefs[0]], "{:.0f}".format(stk[self.colDefs[2]]), "{:.2f}".format(stk[self.colDefs[3]]))
+            self.createRowContent(self.table, rowIdx, stk[self.colDefs[0]], "{:.0f}".format(stk[self.colDefs[2]]), "{0:f}".format(stk[self.colDefs[3]]).rstrip('0').rstrip('.'))
             rowIdx += 1
 #        butWidth = ic2.availableSizes(mode=QtGui.QIcon.Normal, state=QtGui.QIcon.Off)[0].width()
         self.table.setColumnWidth(1,20)
@@ -178,7 +178,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         if curRowIdx < 0:
             curRowIdx = 0
         self.table.insertRow(curRowIdx)
-        self.createRowContent(self.table, curRowIdx, "","0","0.00")
+        self.createRowContent(self.table, curRowIdx, "","0","0.0")
         self.table.selectRow(curRowIdx)
         
     def takeRowContent(self, rowIdx):

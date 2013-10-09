@@ -50,7 +50,7 @@ class RStockTicker(QtWidgets.QMainWindow):
     def __init__(self):
         super(RStockTicker, self).__init__()
         self.hostedConfigFile = HostedConfigFile()
-        self.hostedConfigFile.initFromFile('stockTickerConfig.json')
+        self.hostedConfigFile.initFromFile('privatesettings/stockTickerConfig.json')
         self.stockHoldings = StockHoldings()
         #self.stockreader.readFromShareScopeCSV("robstkexpt.csv")
         configData = self.hostedConfigFile.getConfigDataFromLocation()
@@ -159,9 +159,7 @@ class RStockTicker(QtWidgets.QMainWindow):
                 self.table.setItem(rowIdx, colIdx, it1)
                 colIdx += 1
             rowDef = { 'sym':stk['symbol'], 'hld':stk['holding'], 'cost':stk['cost'] }
-#            print(stk['symbol'], stk['holding'],stk['cost'])
             self.uiRowDefs.append(rowDef)
-#            print (stk['symbol'])
             rowIdx += 1
         self.totalsRow = rowIdx
 
@@ -278,10 +276,10 @@ class RStockTicker(QtWidgets.QMainWindow):
                     elif colDef['colValName'] == 'hld':
                         colStr = '{:2,.0f}'.format(uiRowDef['hld'])
                     elif colDef['colValName'] == 'cost':
-                        colStr = self.currencySign + '{:2,.2f}'.format(uiRowDef['cost'])
+                        colStr = self.currencySign + '{:2,.1f}'.format(uiRowDef['cost'])
                         colValStr = str(uiRowDef['cost'])
                     elif colDef['colValName'] == 'profit':
-                        profitVal = curVal - uiRowDef['cost']
+                        profitVal = curVal - ((uiRowDef['cost'] * uiRowDef["hld"]) / 100.0)
                         colStr = self.currencySign + '{:2,.2f}'.format(profitVal)
                         totalProfit += profitVal
                         colValStr = str(profitVal)
