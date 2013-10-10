@@ -49,27 +49,29 @@ class RStockTicker(QtWidgets.QMainWindow):
 #        self.stockSymbolList.getStocksFromCSV()
         self.stockSymbolList.getStocksFromWeb()
         self.portfolioTableColDefs = [
-            { 'lblIdx':0, 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
-            { 'lblIdx':1, 'colLbl':"Name", 'colValName':"name", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'small' },
-            { 'lblIdx':2, 'colLbl':"Holding", 'colValName':"hld", 'dataType':'float', 'fmtStr':'{:0.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':3, 'colLbl':"Last", 'colValName':"price", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'FlashPosNeg', 'colourBy':'change' },
-            { 'lblIdx':4, 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':5, 'colLbl':"Value", 'colValName':"totalvalue", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':6, 'colLbl':"Profit", 'colValName':"profit", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'PosNeg' },
-            { 'lblIdx':7, 'colLbl':"Volume", 'colValName':"volume", 'dataType':'float', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':8, 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':9, 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
-            { 'lblIdx':10, 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
+            { 'colLbl':"Name", 'colValName':"name", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'small' },
+            { 'colLbl':"Holding", 'colValName':"hld", 'dataType':'float', 'fmtStr':'{:0.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Last", 'colValName':"price", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'FlashPosNeg', 'colourBy':'change' },
+            { 'colLbl':"Change", 'colValName':"change", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Value", 'colValName':"totalvalue", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Profit", 'colValName':"profit", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'PosNeg' },
+            { 'colLbl':"Volume", 'colValName':"volume", 'dataType':'float', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
+            { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.watchTableColDefs = [
-            { 'lblIdx':0, 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
-            { 'lblIdx':1, 'colLbl':"Name", 'colValName':"name", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'small' },
-            { 'lblIdx':3, 'colLbl':"Last", 'colValName':"price", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'FlashPosNeg', 'colourBy':'change' },
-            { 'lblIdx':4, 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':7, 'colLbl':"Volume", 'colValName':"volume", 'dataType':'float', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':8, 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'lblIdx':9, 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
-            { 'lblIdx':10, 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
+            { 'colLbl':"Name", 'colValName':"name", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'small' },
+            { 'colLbl':"Last", 'colValName':"price", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'FlashPosNeg', 'colourBy':'change' },
+            { 'colLbl':"Change", 'colValName':"change", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Volume", 'colValName':"volume", 'dataType':'float', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
+            { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.initUI()
 
@@ -77,24 +79,31 @@ class RStockTicker(QtWidgets.QMainWindow):
     def initUI(self):
 
         # Grid layout for the tables
-        grid = QtWidgets.QGridLayout()
+        self.gridLayout = QtWidgets.QGridLayout()
 
         # Table(s) to handle watch list
-        fullStockList = self.stockHoldings.getStockHolding(False)
-        watchStocks = [item for item in fullStockList if item['holding'] == 0]
-        self.watchTable = StockTable()
-        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
-        self.watchTable.populateTable(watchStocks)
+        numWatchTables = 2
+        self.watchTables = []
+        for tabIdx in range(numWatchTables):
+            newTab = StockTable()
+            newTab.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 9, QtGui.QFont.Bold))
+            self.watchTables.append(newTab)
+
+#        self.watchTable = StockTable()
+#        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
+#        self.watchTable.populateTable(watchStocks)
 
         # Table for portfolio stocks
-        portfolioStocks = [item for item in fullStockList if item['holding'] != 0]                
         self.portfolioTable = StockTable()
         self.portfolioTable.initTable(self.portfolioTableColDefs, self.currencySign, True, QtGui.QFont('SansSerif', 11), QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 13, QtGui.QFont.Bold))
-        self.portfolioTable.populateTable(portfolioStocks)
 
+        # Populate tables
+        self.populateTablesWithStocks()
+        
         # Add tables to grid
-        grid.addWidget(self.watchTable.stocksTable, 0, 0)
-        grid.addWidget(self.portfolioTable.stocksTable, 1, 0, 1, 2)
+        for tabIdx in range(len(self.watchTables)):
+            self.gridLayout.addWidget(self.watchTables[tabIdx].stocksTable, 0, tabIdx)
+        self.gridLayout.addWidget(self.portfolioTable.stocksTable, 1, 0, 1, len(self.watchTables))
         
         # Edit action
         editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)        
@@ -108,7 +117,7 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         # GridWidget that holds everything        
         gridWidget = QtWidgets.QWidget()
-        gridWidget.setLayout(grid)
+        gridWidget.setLayout(self.gridLayout)
         gridWidget.addAction(editAction)
         gridWidget.addAction(exitAction)
         gridWidget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
@@ -119,6 +128,17 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.setWindowTitle('Stock Ticker')
         self.show()
         
+    def populateTablesWithStocks(self):
+        fullStockList = self.stockHoldings.getStockHolding(False)
+        # Watch tables
+        watchStocks = [item for item in fullStockList if item['holding'] == 0]
+        numWatchStocksPerTable = int(len(watchStocks)/len(self.watchTables))
+        for tabIdx in range(len(self.watchTables)):
+            self.watchTables[tabIdx].populateTable(watchStocks[tabIdx*numWatchStocksPerTable:((tabIdx+1)*numWatchStocksPerTable)])
+        # Portfolio table
+        portfolioStocks = [item for item in fullStockList if item['holding'] != 0]                
+        self.portfolioTable.populateTable(portfolioStocks)
+
     def quitApp(self):
         QtWidgets.qApp.closeAllWindows()
         
@@ -127,13 +147,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         editWindow.setContext(self.stockHoldings, self.portfolioTableColDefs, self.stockSymbolList)
         editWindow.initUI()
         rslt = editWindow.exec()
-        #print ("Edit stocks", rslt)
         if rslt != QtWidgets.QDialog.Accepted:
             return
-#        for it in self.stockHoldings.getSortedStockHolding():
-#            print(it)
-#        for it in editWindow.updatedStockHoldings:
-#            print (it)
         # Store the new stock values
         self.stockHoldings.setHoldings(editWindow.updatedStockHoldings)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
@@ -156,17 +171,29 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stocksViewLock.acquire()
         if self.stocksListChanged:
             print ("Stock list changed")
-            self.portfolioTable.clearDataFlash()
-            self.populatePortfolioTable()
+            self.populateTablesWithStocks()
             self.stocksListChanged = False
         self.stocksViewLock.release()
 
-        self.watchTable.updateTable(self.stockValues, self.exDivDates)
+        for table in self.watchTables:
+            table.updateTable(self.stockValues, self.exDivDates)
         self.portfolioTable.updateTable(self.stockValues, self.exDivDates)
-        optSizeWatch = self.watchTable.getOptimumTableSize()
+                
+        # Handle window size updates
+        watchWidth = 0
+        watchHeight = 0
+        for table in self.watchTables:
+            optSizeWatch = table.getOptimumTableSize()
+            watchWidth += optSizeWatch[0] + 20
+            watchHeight = max(watchHeight, optSizeWatch[1])
+        watchHeight = watchHeight + 10
         optSizePortfolio = self.portfolioTable.getOptimumTableSize()
-        self.setMinimumWidth(max(optSizeWatch[0]+20, optSizePortfolio[0]+20))
-        self.setMinimumHeight(optSizeWatch[1]+20+optSizePortfolio[1]+20)
+        portfolioWidth = optSizePortfolio[0] + 20
+        portfolioHeight = optSizePortfolio[1] + 10
+        self.gridLayout.setRowStretch(0, watchHeight)
+        self.gridLayout.setRowStretch(1, portfolioHeight)
+        self.setMinimumWidth(max(watchWidth, portfolioWidth))
+        self.setMinimumHeight(watchHeight+portfolioHeight)
         
 def main():
     app = QtWidgets.QApplication(sys.argv)

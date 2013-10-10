@@ -46,8 +46,6 @@ class StockTable():
         self.stocksTable.setShowGrid(False)
         self.stocksTable.setFocusPolicy(QtCore.Qt.NoFocus)
         self.stocksTable.verticalHeader().setVisible(False)
-#        self.stocksTable.setSortingEnabled(True)
-#        self.stocksTable.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         colIdx = 0
         for colDef in self.uiColDefs:
             hdrItem = QtWidgets.QTableWidgetItem(colDef['colLbl'])
@@ -67,7 +65,7 @@ class StockTable():
         
         # Stock items table
         self.uiRowDefs = []
-        totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0) 
+        totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0)
         self.stocksTable.setRowCount(totalRowsInTable)
         rowIdx = 0
         for stk in stockHolding:
@@ -187,11 +185,9 @@ class StockTable():
                             colStr += colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
                         except:
                             colStr = colValStr
-#                            print (colDef['colValName'], uiCell.text(), colStr, valChanged, colDef)
                     valChanged = (uiCell.text() != colStr)
                     if 'colourCode' in colDef:
                         if colDef['colourCode'] == 'PosNeg' or ((colDef['colourCode'] == 'FlashPosNeg') and valChanged):
-#                            print ("Price", valChanged, colDef['colourCode'], colValStr, uiCell.text())
                             colourByVal = colValStr
                             if 'colourBy' in colDef:
                                 if colDef['colourBy'] == 'change':
@@ -204,8 +200,6 @@ class StockTable():
                             elif 'colourByCol' in colDef:
                                 colToColourBy = colDef['colourByCol']
                                 colourByVal = stkValues[colToColourBy]
-#                            if colDef['colValName'] == 'price':
-#                                print ("Price..", colourByVal, float(colValStr), curCellVal)
                             valToColourBy = 0
                             try:
                                 valToColourBy = float(colourByVal)
@@ -236,4 +230,3 @@ class StockTable():
             self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(totalVal))
         # Resize the table to fit the contents
         self.stocksTable.resizeColumnsToContents()
-
