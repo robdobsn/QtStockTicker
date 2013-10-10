@@ -32,9 +32,13 @@ class StockTable():
     dataFlashTimeMs = 400;
     currencySign = ""
  
-    def initTable(self, colDefs, currencySign):
+    def initTable(self, colDefs, currencySign, bTotalsRow, normalFont, smallFont, largeFont):
         self.uiColDefs = colDefs
         self.currencySign = currencySign
+        self.bTotalsRow = bTotalsRow
+        self.normalFont = normalFont
+        self.smallFont = smallFont
+        self.largeFont = largeFont
         
         # Table for stocks
         self.stocksTable = QtWidgets.QTableWidget()
@@ -51,7 +55,7 @@ class StockTable():
                 hdrItem.setTextAlignment(QtCore.Qt.AlignRight)
             else:
                 hdrItem.setTextAlignment(QtCore.Qt.AlignLeft)
-            hdrItem.setFont(QtGui.QFont('SansSerif', 11))
+            hdrItem.setFont(self.normalFont)
             self.stocksTable.setHorizontalHeaderItem(colIdx, hdrItem)
             colIdx += 1
         palette = QtGui.QPalette()
@@ -59,13 +63,13 @@ class StockTable():
         self.stocksTable.setPalette(palette)
 
         
-    def populateTable(self, stockHoldings):
+    def populateTable(self, stockHolding):
         
         # Stock items table
         self.uiRowDefs = []
-        self.stocksTable.setRowCount(stockHoldings.numStocks() + 1)
+        totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0) 
+        self.stocksTable.setRowCount(totalRowsInTable)
         rowIdx = 0
-        stockHolding = stockHoldings.getStockHolding(False)
         for stk in stockHolding:
             self.stocksTable.setRowHeight(rowIdx,20)
             colIdx = 0
@@ -75,11 +79,11 @@ class StockTable():
                 elif colDef['colValName'] == 'totalvalue':
                     self.totalValueCol = colIdx
                 if 'fontSize' in colDef and colDef['fontSize'] == 'large':
-                    font1 = QtGui.QFont('SansSerif', 13, QtGui.QFont.Bold)
+                    font1 = self.largeFont
                 elif 'fontSize' in colDef and colDef['fontSize'] == 'small':
-                    font1 = QtGui.QFont('SansSerif', 9)
+                    font1 = self.smallFont
                 else:
-                    font1 = QtGui.QFont('SansSerif', 11)
+                    font1 = self.normalFont
                 it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignRight if ('align' in colDef and colDef['align'] == 'right') else QtCore.Qt.AlignLeft, font1)
                 self.stocksTable.setItem(rowIdx, colIdx, it1)
                 colIdx += 1
@@ -88,20 +92,20 @@ class StockTable():
             rowIdx += 1
         self.totalsRow = rowIdx
 
-        # fill remainder of table with empty cells
-        colIdx = 0
-        for colDef in self.uiColDefs:
-            it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignLeft, QtGui.QFont('SansSerif', 11))
-            self.stocksTable.setItem(self.totalsRow, colIdx, it1)
-            colIdx += 1
-            
-        # Totals
-        itTotLabel = self.makeTableItem("Totals", self.brushTotals, QtCore.Qt.AlignLeft, QtGui.QFont('SansSerif', 11))
-        self.stocksTable.setItem(self.totalsRow, min(self.totalProfitCol, self.totalValueCol)-1, itTotLabel)
-        itTotProfitVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, QtGui.QFont('SansSerif', 11))
-        self.stocksTable.setItem(self.totalsRow, self.totalProfitCol, itTotProfitVal)
-        itTotalVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, QtGui.QFont('SansSerif', 11))
-        self.stocksTable.setItem(self.totalsRow, self.totalValueCol, itTotalVal)
+        if self.bTotalsRow:
+            # fill totals row of table with empty cells
+            colIdx = 0
+            for colDef in self.uiColDefs:
+                it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignLeft, self.normalFont)
+                self.stocksTable.setItem(self.totalsRow, colIdx, it1)
+                colIdx += 1
+            #Totals
+            itTotLabel = self.makeTableItem("Totals", self.brushTotals, QtCore.Qt.AlignLeft, self.normalFont)
+            self.stocksTable.setItem(self.totalsRow, min(self.totalProfitCol, self.totalValueCol)-1, itTotLabel)
+            itTotProfitVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, self.normalFont)
+            self.stocksTable.setItem(self.totalsRow, self.totalProfitCol, itTotProfitVal)
+            itTotalVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, self.normalFont)
+            self.stocksTable.setItem(self.totalsRow, self.totalValueCol, itTotalVal)
 
     def makeTableItem(self, txt, foreGnd, align, font):
         it1 = QtWidgets.QTableWidgetItem(txt)
@@ -226,7 +230,10 @@ class StockTable():
                         uiCell.setText(colStr)
                     colIdx += 1
             rowIdx += 1
-        self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(totalProfit))
-        self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(totalVal))
+        # Handle totals if required
+        if self.bTotalsRow:
+            self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(totalProfit))
+            self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(totalVal))
+        # Resize the table to fit the contents
         self.stocksTable.resizeColumnsToContents()
 

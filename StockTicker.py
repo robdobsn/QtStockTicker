@@ -23,7 +23,6 @@ Created on 4 Sep 2013
 class RStockTicker(QtWidgets.QMainWindow):
 
     stockHoldings = None
-    portfolioTableColDefs = []
     updateTimer = None
     currencySign = "\xA3"
     stocksViewLock = threading.Lock()
@@ -62,17 +61,41 @@ class RStockTicker(QtWidgets.QMainWindow):
             { 'lblIdx':9, 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
             { 'lblIdx':10, 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
+        self.watchTableColDefs = [
+            { 'lblIdx':0, 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
+            { 'lblIdx':1, 'colLbl':"Name", 'colValName':"name", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'small' },
+            { 'lblIdx':3, 'colLbl':"Last", 'colValName':"price", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'FlashPosNeg', 'colourBy':'change' },
+            { 'lblIdx':4, 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'lblIdx':7, 'colLbl':"Volume", 'colValName':"volume", 'dataType':'float', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'lblIdx':8, 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'lblIdx':9, 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'float', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
+            { 'lblIdx':10, 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            ]
         self.initUI()
 
         
     def initUI(self):
 
+        # Grid layout for the tables
         grid = QtWidgets.QGridLayout()
-        
-        self.portfolioTable = StockTable()
-        self.portfolioTable.initTable(self.portfolioTableColDefs, self.currencySign)
-        self.portfolioTable.populateTable(self.stockHoldings)
 
+        # Table(s) to handle watch list
+        fullStockList = self.stockHoldings.getStockHolding(False)
+        watchStocks = [item for item in fullStockList if item['holding'] == 0]
+        self.watchTable = StockTable()
+        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
+        self.watchTable.populateTable(watchStocks)
+
+        # Table for portfolio stocks
+        portfolioStocks = [item for item in fullStockList if item['holding'] != 0]                
+        self.portfolioTable = StockTable()
+        self.portfolioTable.initTable(self.portfolioTableColDefs, self.currencySign, True, QtGui.QFont('SansSerif', 11), QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 13, QtGui.QFont.Bold))
+        self.portfolioTable.populateTable(portfolioStocks)
+
+        # Add tables to grid
+        grid.addWidget(self.watchTable.stocksTable, 0, 0)
+        grid.addWidget(self.portfolioTable.stocksTable, 1, 0, 1, 2)
+        
         # Edit action
         editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)        
         editAction.setStatusTip('Edit shares')
@@ -82,10 +105,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)        
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.quitApp)
-        
-        grid.addWidget(self.portfolioTable.stocksTable, 0, 0)
-        
-#        self.setLayout(grid)
+
+        # GridWidget that holds everything        
         gridWidget = QtWidgets.QWidget()
         gridWidget.setLayout(grid)
         gridWidget.addAction(editAction)
@@ -140,10 +161,12 @@ class RStockTicker(QtWidgets.QMainWindow):
             self.stocksListChanged = False
         self.stocksViewLock.release()
 
+        self.watchTable.updateTable(self.stockValues, self.exDivDates)
         self.portfolioTable.updateTable(self.stockValues, self.exDivDates)
-        optSize = self.portfolioTable.getOptimumTableSize()
-        self.setMinimumWidth(optSize[0]+20)
-        self.setMinimumHeight(optSize[1]+20)
+        optSizeWatch = self.watchTable.getOptimumTableSize()
+        optSizePortfolio = self.portfolioTable.getOptimumTableSize()
+        self.setMinimumWidth(max(optSizeWatch[0]+20, optSizePortfolio[0]+20))
+        self.setMinimumHeight(optSizeWatch[1]+20+optSizePortfolio[1]+20)
         
 def main():
     app = QtWidgets.QApplication(sys.argv)
