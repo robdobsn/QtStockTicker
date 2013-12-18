@@ -3,6 +3,7 @@
 #################
 
 *.pydevproject
+.idea/workspace.xml
 .project
 .metadata
 bin/
