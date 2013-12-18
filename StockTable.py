@@ -1,6 +1,11 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QTime
 
+from re import sub
+from decimal import Decimal
+
+import os
+
 '''
 Created on 10 Oct 2013
 
@@ -144,59 +149,72 @@ class StockTable():
         self.updateDataFlash(self.stocksTable, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
         
         # Update stock table values
-        rowIdx = 0
-        totalVal = 0
-        totalProfit = 0
-        for uiRowDef in self.uiRowDefs:
+        totalVal = Decimal("0.00")
+        totalProfit = Decimal("0.00")
+        rowsWithTotalValue = 0
+        debugTotals = []
+        # Iterate rows
+        for rowIdx in range(len(self.uiRowDefs)):
+            uiRowDef = self.uiRowDefs[rowIdx]
             stkValues = stockValues.getStockData(uiRowDef["sym"])
             if stkValues != None:
                 exDivDates.addToStockInfo(uiRowDef["sym"], stkValues)
-                colIdx=0
-                for colDef in self.uiColDefs:
-                    valChanged = False
+                if not "price" in stkValues:
+                    continue
+                stkHolding = Decimal(uiRowDef["hld"])
+                stkPricePence = Decimal(stkValues["price"])
+                stkCurValue = (stkPricePence * stkHolding) / Decimal("100")
+                stkCostPerSharePence = Decimal(uiRowDef['cost'])
+                stkOrigCost = (stkCostPerSharePence * stkHolding) / Decimal("100")
+                symbolName = uiRowDef['sym']
+                # Iterate columns to fill table
+                for colIdx in range(len(self.uiColDefs)):
+                    colDef = self.uiColDefs[colIdx]
+                    colValName = colDef['colValName']
                     uiCell = self.stocksTable.item(rowIdx, colIdx)
-                    if not "price" in stkValues:
-                        break;
-                    stkVal = 0 if (not "price" in stkValues) else float(stkValues["price"])
-                    curVal = float(stkVal) * uiRowDef["hld"] / 100.0
-                    colValStr = stkValues[colDef['colValName']] if (colDef['colValName'] in stkValues) else "0"
-                    if colDef['colValName'] == 'sym':
-                        colStr = uiRowDef['sym']
-                    elif colDef['colValName'] == 'hld':
-                        colStr = '{:2,.0f}'.format(uiRowDef['hld']) if (uiRowDef['hld'] != 0) else "" 
-                    elif colDef['colValName'] == 'cost':
-                        colStr = (self.currencySign + '{:2,.1f}'.format(uiRowDef['cost'])) if (uiRowDef['hld'] != 0) else ""
-                        colValStr = str(uiRowDef['cost'])
-                    elif colDef['colValName'] == 'profit':
-                        profitVal = curVal - ((uiRowDef['cost'] * uiRowDef["hld"]) / 100.0)
-                        colStr = (self.currencySign + '{:2,.2f}'.format(profitVal))  if (uiRowDef['hld'] != 0) else ""
-                        totalProfit += profitVal
-                        colValStr = str(profitVal) if (uiRowDef['hld'] != 0) else ""
-                    elif colDef['colValName'] == 'totalvalue':
-                        colStr = (self.currencySign + '{:2,.2f}'.format(curVal)) if (uiRowDef['hld'] != 0) else ""
-                        colValStr = str(curVal) if (uiRowDef['hld'] != 0) else ""
-                        totalVal += curVal
-                    elif colDef['dataType'] == 'str':
-                        colStr = "" if (not colDef['colValName'] in stkValues) else stkValues[colDef['colValName']]
-                    elif colDef['dataType'] == 'float':
-                        try:
-                            colStr = colDef['prfxStr'] if 'prfxStr' in colDef else ""
-                            colStr += colDef['fmtStr'].format(float(colValStr)) if ('fmtStr' in colDef and colDef['fmtStr'] != "") else colValStr 
-                            colStr += colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
-                        except:
-                            colStr = colValStr
-                    valChanged = (uiCell.text() != colStr)
+                    cellNewText = ""
+                    cellValue = Decimal(0)
+                    if colDef['dataType'] == 'decimal':
+                        cellValue = Decimal("0")
+                        if colValName == 'hld':
+                            cellValue = stkHolding
+                        elif colValName == 'cost':
+                            cellValue = stkCostPerSharePence
+                        elif colValName == 'profit':
+                            cellValue = stkCurValue - stkOrigCost
+                            totalProfit += cellValue
+                        elif colValName == 'totalvalue':
+                            cellValue = stkCurValue
+                            totalVal += cellValue
+                            rowsWithTotalValue += 1
+                            debugTotals.append((rowIdx, cellValue, totalVal))  # debug
+                        else:
+                            if colValName in stkValues:
+                                cellValue = Decimal(stkValues[colValName])
+                        # Format the value
+                        cellNewText += colDef['fmtStr'].format(cellValue) if ('fmtStr' in colDef and colDef['fmtStr'] != "") else "{0:.0f}".format(cellValue)
+                    else: # must be string
+                        if colValName == 'sym':
+                            cellNewText = symbolName
+                        else:
+                            cellNewText = stkValues[colDef['colValName']] if (colDef['colValName'] in stkValues) else ""
+                    txtPrefix = colDef['prfxStr'] if 'prfxStr' in colDef else ""
+                    txtSuffix = colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
+                    cellNewText = txtPrefix + cellNewText + txtSuffix
+                    # Check for changes
+                    valChanged = (uiCell.text() != cellNewText)
+                    # Handle colour coding
                     if 'colourCode' in colDef:
-                        if colDef['colourCode'] == 'PosNeg' or ((colDef['colourCode'] == 'FlashPosNeg') and valChanged):
-                            colourByVal = colValStr
+                        if colDef['colourCode'] == 'PosNeg' or colDef['colourCode'] == 'PosBad' or ((colDef['colourCode'] == 'FlashPosNeg') and valChanged):
+                            colourByVal = cellValue
                             if 'colourBy' in colDef:
                                 if colDef['colourBy'] == 'change':
                                     curCellVal = 0
                                     try:
-                                        curCellVal = float(uiCell.text())
+                                        curCellVal = Decimal(float(uiCell.text()))
                                     except:
                                         curCellVal = 0
-                                    colourByVal = float(colValStr) - curCellVal
+                                    colourByVal = colourByVal - curCellVal
                             elif 'colourByCol' in colDef:
                                 colToColourBy = colDef['colourByCol']
                                 colourByVal = stkValues[colToColourBy]
@@ -206,7 +224,10 @@ class StockTable():
                             except:
                                 valToColourBy = 0
                             if valToColourBy > 0:
-                                uiCell.setBackground(self.brushGreen)
+                                if colDef['colourCode'] == 'PosBad':
+                                    uiCell.setBackground(self.brushRed)
+                                else:
+                                    uiCell.setBackground(self.brushGreen)
                             elif valToColourBy < 0:
                                 uiCell.setBackground(self.brushRed)
                             else:
@@ -214,6 +235,7 @@ class StockTable():
                         if (colDef['colourCode'] == 'FlashPosNeg') and valChanged:
                             self.dataFlashTimerStarted = True
                             self.dataFlashTimer.start()
+                    # Handle display validity
                     bShowValue = True
                     if 'onlyIfValid' in colDef:
                         bShowValue = False
@@ -221,12 +243,65 @@ class StockTable():
                             if stkValues[colDef['onlyIfValid']] != "":
                                 bShowValue = True
                     if bShowValue:
-                        uiCell.setText(colStr)
-                    colIdx += 1
-            rowIdx += 1
+                        uiCell.setText(cellNewText)
         # Handle totals if required
-        if self.bTotalsRow:
+        if self.bTotalsRow and (rowsWithTotalValue == len(self.uiRowDefs)):
             self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(totalProfit))
             self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(totalVal))
         # Resize the table to fit the contents
         self.stocksTable.resizeColumnsToContents()
+        self.CrossCheckValues()
+
+
+    def CrossCheckValues(self):
+
+        # Cross-check values
+        if self.bTotalsRow:
+            sum = 0
+            chkValues = []
+            rowIdx = 0
+            for uiRowDef in self.uiRowDefs:
+                colIdx=0
+                valueText = ""
+                symText = ""
+                for colDef in self.uiColDefs:
+                    uiCell = self.stocksTable.item(rowIdx, colIdx)
+                    if colDef['colValName'] == 'totalvalue':
+                        valueText = uiCell.text()
+                    elif colDef['colValName'] == 'sym':
+                        symText = uiCell.text()
+                    colIdx += 1
+                val = 0
+                try:
+                    val = Decimal(sub(r'[^\d\-.]', '', valueText))
+                except:
+                    val = 0
+                sum += val
+                chkValues.append((symText, valueText, val, sum))
+                rowIdx += 1
+
+            sumFromTab = self.stocksTable.item(self.totalsRow, self.totalValueCol).text()
+            sumCheck = 0
+            try:
+                sumCheck = Decimal(sub(r'[^\d\-.]', '', sumFromTab))
+            except:
+                sumCheck = 0
+            sumDiff = abs(sumCheck - sum)
+            if sumDiff > 1:
+                pubFolder = os.path.expanduser('~Public\Documents')
+                f = open(pubFolder + "\\qtstktickdebug.txt", 'w+')
+                f.write("VALUES DON'T ADD UP" + " ColTotal = " + str(sum) + " != TotCell = " + str(sumCheck) + "\n")
+                for elIdx in range(len(chkValues)):
+                    for li in chkValues[elIdx]:
+                        f.write(str(li) + "\t")
+                    f.write("\n")
+                f.write("\n")
+                f.close()
+                self.stocksTable.item(self.totalsRow, self.totalValueCol).setBackground(self.brushRed)
+            else:
+                self.stocksTable.item(self.totalsRow, self.totalValueCol).setBackground(self.brushNeutral)
+
+
+
+
+
