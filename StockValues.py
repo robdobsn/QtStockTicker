@@ -75,15 +75,22 @@ class StockValues:
 #                    print ("querying for ", ticker)
                     try:
                         stkdata = self.get_quote( ticker )
+                        stkdata['time'] = now
+                        self.lock.acquire()
+                        self.stockData[ticker] = stkdata
+                        self.stockData[ticker]['failCount'] = 0
+                        self.lock.release()
                     except:
                         print ("get_quote failed for " + ticker)
                         self.status = "failed for " + ticker
-                        stkdata={}
-                    stkdata['time'] = now
-                    self.lock.acquire()
-                    self.stockData[ticker] = stkdata
-                    self.lock.release()
-#                    print (ticker + " = " + stkdata["price"])
+                        self.lock.acquire()
+                        if not ticker in self.stockData:
+                            self.stockData[ticker] = {}
+                            self.stockData[ticker]['failCount'] = 1
+                        else:
+                            self.stockData[ticker]['failCount'] += 1
+#                     print (ticker + " = " + stkdata["price"])
+                        self.lock.release()
             else:
                 self.status = "Market Closed"
 #                    print "Markets closed"
@@ -96,7 +103,7 @@ class StockValues:
             self.listUpdateLock.release()
 
             
-    def get_quote(self, symbol):
+    def get_full_quote(self, symbol):
         """
         Get all available quote data for the given ticker symbol.
     
@@ -136,6 +143,21 @@ class StockValues:
             name=self.stripQuotes(values[29]),
         )
 
+    def get_quote(self, symbol):
+        """
+        Get all available quote data for the given ticker symbol.
+
+        Returns a dictionary.
+        """
+        values = self._request(symbol, 'l1c1vp2n').split(',')
+        return dict(
+            price=values[0],
+            change=values[1],
+            volume=values[2],
+            chg_percent=self.stripQuotes(values[3]),
+            name=self.stripQuotes(values[4]),
+        )
+
     def stripQuotes(self, inStr):
         if inStr.startswith('"') and inStr.endswith('"'):
             inStr = inStr[1:-1]
@@ -144,6 +166,7 @@ class StockValues:
     # Borrowed from ystockquote
     def _request(self, symbol, stat):
         url = 'http://finance.yahoo.com/d/quotes.csv?s=%s&f=%s' % (symbol, stat)
+        #print ("Requesting " + url)
         req = Request(url)
         resp = urlopen(req)
         return str(resp.read().decode('utf-8').strip())
