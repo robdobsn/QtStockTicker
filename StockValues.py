@@ -56,7 +56,21 @@ class StockValues:
         
     def do_thread_loop(self):
         firstpass = True
-        while ( self.running ):
+        nextStockIdx = 0
+        maxStocksPerPass = 50
+        while self.running:
+
+            # Sleep for a bit
+            time.sleep(5)
+
+            # Check if the stock list has been updated
+            self.listUpdateLock.acquire()
+            if self.pendingTickerlist != None:
+                self.tickerlist = self.pendingTickerlist
+                self.pendingTickerlist = None
+            self.listUpdateLock.release()
+
+            # Check if the market opening times are important
             now = datetime.datetime.now()
             open_time = now.replace( hour=self.openhour, minute=self.openmin, second=0 )
             close_time = now.replace( hour=self.closehour, minute=self.closemin, second=0 )
@@ -68,95 +82,77 @@ class StockValues:
             if self.bOnlyUpdateWhileMarketOpen:
                 if not( firstpass or (( now > open_time) and ( now < close_time ) and open_day)):
                     updateNeeded = False
-            if updateNeeded:
-                firstpass = False
-                for stock in self.tickerlist:
-                    ticker = stock
-#                    print ("querying for ", ticker)
-                    try:
-                        stkdata = self.get_quote( ticker )
-                        stkdata['time'] = now
-                        self.lock.acquire()
-                        self.stockData[ticker] = stkdata
-                        self.stockData[ticker]['failCount'] = 0
-                        self.lock.release()
-                    except:
-                        print ("get_quote failed for " + ticker)
-                        self.status = "failed for " + ticker
-                        self.lock.acquire()
-                        if not ticker in self.stockData:
-                            self.stockData[ticker] = {}
-                            self.stockData[ticker]['failCount'] = 1
-                        else:
-                            self.stockData[ticker]['failCount'] += 1
-#                     print (ticker + " = " + stkdata["price"])
-                        self.lock.release()
-            else:
+            if not updateNeeded:
                 self.status = "Market Closed"
-#                    print "Markets closed"
-            time.sleep(1)
-            # Check if the stock list has been updated
-            self.listUpdateLock.acquire()
-            if self.pendingTickerlist != None:
-                self.tickerlist = self.pendingTickerlist
-                self.pendingTickerlist = None
-            self.listUpdateLock.release()
+                continue
 
-            
-    def get_full_quote(self, symbol):
-        """
-        Get all available quote data for the given ticker symbol.
-    
-        Returns a dictionary.
-        """
-        values = self._request(symbol, 'l1c1va2xj1b4j4dyekjm3m4rr5p5p6s7abghp2opqr1n').split(',')
-        return dict(
-            price=values[0],
-            change=values[1],
-            volume=values[2],
-            avg_daily_volume=values[3],
-            stock_exchange=values[4],
-            market_cap=values[5],
-            book_value=values[6],
-            ebitda=values[7],
-            dividend_per_share=values[8],
-            dividend_yield=values[9],
-            earnings_per_share=values[10],
-            fifty_two_week_high=values[11],
-            fifty_two_week_low=values[12],
-            fifty_day_moving_avg=values[13],
-            two_hundred_day_moving_avg=values[14],
-            price_earnings_ratio=values[15],
-            price_earnings_growth_ratio=values[16],
-            price_sales_ratio=values[17],
-            price_book_ratio=values[18],
-            short_ratio=values[19],
-            ask=values[20],
-            bid=values[21],
-            day_low=values[22],
-            day_high=values[23],
-            chg_percent=self.stripQuotes(values[24]),
-            open_val=values[25],
-            prev_close=values[26],
-            ex_div_date=self.stripQuotes(values[27]),
-            div_pay_date=values[28],
-            name=self.stripQuotes(values[29]),
-        )
+            # Check list isn't empty
+            if len(self.tickerlist) <= 0:
+                continue
 
-    def get_quote(self, symbol):
+            # Update the list
+            firstpass = False
+            stocks = self.tickerlist[nextStockIdx:nextStockIdx+maxStocksPerPass]
+            if len(stocks) <= 0:
+                continue
+
+            stkdataValid = False
+            try:
+                stkdata = self.get_quotes(stocks)
+                stkdataValid = True
+            except:
+                print ("get_quote failed for " + str(nextStockIdx))
+                self.status = "failed for " + str(nextStockIdx)
+                # self.lock.acquire()
+                # if not ticker in self.stockData:
+                #     self.stockData[ticker] = {}
+                #     self.stockData[ticker]['failCount'] = 1
+                # else:
+                #     self.stockData[ticker]['failCount'] += 1
+                # self.lock.release()
+
+            if stkdataValid:
+                try:
+                    self.lock.acquire()
+                    for ticker,values in stkdata.items():
+                        self.stockData[ticker] = values
+                        self.stockData[ticker]['failCount'] = 0
+                        self.stockData[ticker]['time'] = now
+                finally:
+                    self.lock.release()
+
+            if nextStockIdx + maxStocksPerPass > len(self.tickerlist):
+                nextStockIdx = 0
+            else:
+                nextStockIdx += maxStocksPerPass
+
+    def get_quotes(self, symbols):
         """
-        Get all available quote data for the given ticker symbol.
+        Get all available quote data for the given ticker symbols.
 
         Returns a dictionary.
         """
-        values = self._request(symbol, 'l1c1vp2n').split(',')
-        return dict(
-            price=values[0],
-            change=values[1],
-            volume=values[2],
-            chg_percent=self.stripQuotes(values[3]),
-            name=self.stripQuotes(values[4]),
-        )
+        symbolList = ""
+        for symbol in symbols:
+            if symbolList != "":
+                symbolList += ","
+            symbolList+=symbol
+        lines = self._request(symbolList, 'sl1c1vp2n').split('\n')
+        quotes = {}
+#        if len(symbols) != len(lines):
+#            print("Problem - returned values don't match symbols - numSym " + str(len(symbolList)) + ", str(numVals)" + len(lines))
+#            return {}
+        for symIdx in range(len(lines)):
+            values = lines[symIdx].strip().split(',')
+            ticker = self.stripQuotes(values[0])
+            quotes[ticker] = dict(
+                        price=values[1],
+                        change=values[2],
+                        volume=values[3],
+                        chg_percent=self.stripQuotes(values[4]),
+                        name=self.stripQuotes(values[5]),
+                    )
+        return quotes
 
     def stripQuotes(self, inStr):
         if inStr.startswith('"') and inStr.endswith('"'):
@@ -169,4 +165,5 @@ class StockValues:
         #print ("Requesting " + url)
         req = Request(url)
         resp = urlopen(req)
-        return str(resp.read().decode('utf-8').strip())
+        readVal = resp.read()
+        return str(readVal.decode('utf-8').strip())
