@@ -13,6 +13,7 @@ from StockSymbolList import StockSymbolList
 from HostedConfigFile import HostedConfigFile
 from ExDivDates import ExDivDates
 from StockTable import StockTable
+from decimal import Decimal
 
 '''
 Created on 4 Sep 2013
@@ -41,7 +42,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stockValues.setStocks(heldStockSymbols)
         self.stockValues.run()
         self.exDivDates = ExDivDates()
-        self.exDivDates.run()
+#        self.exDivDates.run()
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
         self.updateTimer.start(1000)
@@ -82,7 +83,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.gridLayout = QtWidgets.QGridLayout()
 
         # Table(s) to handle watch list
-        numWatchTables = 2
+        numWatchTables = 3
         self.watchTables = []
         for tabIdx in range(numWatchTables):
             newTab = StockTable()
@@ -93,17 +94,27 @@ class RStockTicker(QtWidgets.QMainWindow):
 #        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
 #        self.watchTable.populateTable(watchStocks)
 
-        # Table for portfolio stocks
-        self.portfolioTable = StockTable()
-        self.portfolioTable.initTable(self.portfolioTableColDefs, self.currencySign, True, QtGui.QFont('SansSerif', 11), QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 13, QtGui.QFont.Bold))
+        # Table(s) for portfolio stocks
+        numPortfolioTables = 2
+        self.portfolioTables = []
+        for tabIdx in range(numPortfolioTables):
+            newTab = StockTable()
+            newTab.initTable(self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, QtGui.QFont('SansSerif', 10), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
+            self.portfolioTables.append(newTab)
 
         # Populate tables
         self.populateTablesWithStocks()
-        
+        self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
+
+        # Span for watch tables and portfolio tables
+        watchTabColSpan = numPortfolioTables
+        portfolioTabColSpan = numWatchTables
+
         # Add tables to grid
         for tabIdx in range(len(self.watchTables)):
-            self.gridLayout.addWidget(self.watchTables[tabIdx].stocksTable, 0, tabIdx)
-        self.gridLayout.addWidget(self.portfolioTable.stocksTable, 1, 0, 1, len(self.watchTables))
+            self.gridLayout.addWidget(self.watchTables[tabIdx].stocksTable, 0, tabIdx*watchTabColSpan, 1, watchTabColSpan)
+        for tabIdx in range(len(self.portfolioTables)):
+            self.gridLayout.addWidget(self.portfolioTables[tabIdx].stocksTable, 1, tabIdx*portfolioTabColSpan, 1, portfolioTabColSpan)
         
         # Edit action
         editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)        
@@ -132,12 +143,14 @@ class RStockTicker(QtWidgets.QMainWindow):
         fullStockList = self.stockHoldings.getStockHolding(False)
         # Watch tables
         watchStocks = [item for item in fullStockList if item['holding'] == 0]
-        numWatchStocksPerTable = int(len(watchStocks)/len(self.watchTables))
+        numWatchStocksPerTable = int((len(watchStocks)+len(self.watchTables)-1)/len(self.watchTables))
         for tabIdx in range(len(self.watchTables)):
             self.watchTables[tabIdx].populateTable(watchStocks[tabIdx*numWatchStocksPerTable:((tabIdx+1)*numWatchStocksPerTable)])
         # Portfolio table
-        portfolioStocks = [item for item in fullStockList if item['holding'] != 0]                
-        self.portfolioTable.populateTable(portfolioStocks)
+        portfolioStocks = [item for item in fullStockList if item['holding'] != 0]
+        numPortfolioStocksPerTable = int((len(portfolioStocks)+len(self.portfolioTables)-1)/len(self.portfolioTables))
+        for tabIdx in range(len(self.portfolioTables)):
+            self.portfolioTables[tabIdx].populateTable(portfolioStocks[tabIdx*numPortfolioStocksPerTable:((tabIdx+1)*numPortfolioStocksPerTable)])
 
     def quitApp(self):
         QtWidgets.qApp.closeAllWindows()
@@ -172,24 +185,33 @@ class RStockTicker(QtWidgets.QMainWindow):
         if self.stocksListChanged:
             print ("Stock list changed")
             self.populateTablesWithStocks()
+            self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
             self.stocksListChanged = False
         self.stocksViewLock.release()
 
         for table in self.watchTables:
-            table.updateTable(self.stockValues, self.exDivDates)
-        self.portfolioTable.updateTable(self.stockValues, self.exDivDates)
-                
+            table.updateTable(self.stockValues, self.exDivDates, [Decimal("0"),Decimal("0"),0,0])
+        tableTotals = [Decimal("0"),Decimal("0"),0,0]
+        for table in self.portfolioTables:
+            tableTotals = table.updateTable(self.stockValues, self.exDivDates, tableTotals)
+            table.SetTotals(tableTotals)
+
         # Handle window size updates
         watchWidth = 0
         watchHeight = 0
+        portfolioWidth = 0
+        portfolioHeight = 0
         for table in self.watchTables:
             optSizeWatch = table.getOptimumTableSize()
             watchWidth += optSizeWatch[0] + 20
             watchHeight = max(watchHeight, optSizeWatch[1])
-        watchHeight = watchHeight + 10
-        optSizePortfolio = self.portfolioTable.getOptimumTableSize()
-        portfolioWidth = optSizePortfolio[0] + 20
-        portfolioHeight = optSizePortfolio[1] + 10
+        watchHeight += 10
+        for table in self.portfolioTables:
+            optSizePortfolio = table.getOptimumTableSize()
+            portfolioWidth += optSizePortfolio[0] + 20
+            portfolioHeight = max(portfolioHeight, optSizePortfolio[1])
+        portfolioWidth += 20
+        portfolioHeight += 10
         self.gridLayout.setRowStretch(0, watchHeight)
         self.gridLayout.setRowStretch(1, portfolioHeight)
         self.setMinimumWidth(max(watchWidth, portfolioWidth))
