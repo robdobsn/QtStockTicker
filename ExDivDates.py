@@ -42,6 +42,18 @@ class ExDivDates():
                     stkInfoDict[iti] = self.stocksExDivInfo[symbol][iti]
         self.lock.release()
 
+    def setFromStockHoldings(self, stockHoldings):
+        itemsToAdd = ['exDivDate','exDivAmount','paymentDate']
+        reqNotEmptyItem = 'exDivDate'
+        for stock in stockHoldings:
+            if reqNotEmptyItem in stock and "symbol" in stock:
+                if stock[reqNotEmptyItem] != "":
+                    newDict = {}
+                    for item in itemsToAdd:
+                        if item in stock:
+                            newDict[item] = stock[item]
+                    self.stocksExDivInfo[stock["symbol"]] = newDict
+
     def do_thread_scrape(self):
         while(self.running):
             
