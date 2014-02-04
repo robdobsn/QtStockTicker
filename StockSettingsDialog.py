@@ -28,9 +28,9 @@ class StockSettingsDialog(QtWidgets.QDialog):
         hLayout1 = QtWidgets.QHBoxLayout()
         
         # Table for stocks
-        self.colHeadStrs = ["Symbol", "", "Holding", "Cost/Share (p)", ""]
-        self.colDefs = ["symbol", "", "holding", "cost", ""]
-        self.colIsFloat = [False,False,True,True,False]
+        self.colHeadStrs = ["Symbol", "", "Holding", "Cost/Share (p)", "ExDivDate", "ExDivAmount", "PaymentDate", ""]
+        self.colDefs = ["symbol", "", "holding", "cost", "exDivDate", "exDivAmount", "paymentDate", ""]
+        self.colIsFloat = [False,False,True,True,False,True,False,False]
         self.table = QtWidgets.QTableWidget()
         self.table.setRowCount(self.stockHoldings.numStocks())
         self.table.setColumnCount(len(self.colHeadStrs))
@@ -56,11 +56,11 @@ class StockSettingsDialog(QtWidgets.QDialog):
         rowIdx = 0
         stockHolding = self.stockHoldings.getStockHolding(False)
         for stk in stockHolding:
-            self.createRowContent(self.table, rowIdx, stk[self.colDefs[0]], "{:.0f}".format(stk[self.colDefs[2]]), "{0:f}".format(stk[self.colDefs[3]]).rstrip('0').rstrip('.'))
+            self.createRowContent(self.table, rowIdx, stk[self.colDefs[0]], "{:.0f}".format(stk[self.colDefs[2]]), "{0:f}".format(stk[self.colDefs[3]]).rstrip('0').rstrip('.'), stk[self.colDefs[4]], "{:.0f}".format(stk[self.colDefs[5]]), stk[self.colDefs[6]])
             rowIdx += 1
 #        butWidth = ic2.availableSizes(mode=QtGui.QIcon.Normal, state=QtGui.QIcon.Off)[0].width()
         self.table.setColumnWidth(1,20)
-        self.table.setColumnWidth(4,20)
+        self.table.setColumnWidth(7,20)
         self.table.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding))
         if self.table.rowCount() > 0:
             self.table.selectRow(0)
@@ -118,12 +118,12 @@ class StockSettingsDialog(QtWidgets.QDialog):
 
         self.setLayout(vLayout)
         self.setWindowTitle('Edit stocks')
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(800)
         
         self.table.setFocus()
         #self.show()
 
-    def createRowContent(self, table, rowIdx, symbolStr, holdingStr, costStr):
+    def createRowContent(self, table, rowIdx, symbolStr, holdingStr, costStr, exDivDateStr, exDivAmountStr, exDivPayDateStr):
         #self.table.setRowHeight(rowIdx,20)
         #print (stk['symbol'], stk['holding'], stk['cost'])
         it1 = QtWidgets.QTableWidgetItem(symbolStr)
@@ -139,11 +139,20 @@ class StockSettingsDialog(QtWidgets.QDialog):
         it4 = QtWidgets.QTableWidgetItem(costStr)
         it4.setTextAlignment(QtCore.Qt.AlignRight)
         table.setItem(rowIdx, 3, it4)
+        it5 = QtWidgets.QTableWidgetItem(exDivDateStr)
+        it5.setTextAlignment(QtCore.Qt.AlignRight)
+        table.setItem(rowIdx, 4, it5)
+        it6 = QtWidgets.QTableWidgetItem(exDivAmountStr)
+        it6.setTextAlignment(QtCore.Qt.AlignRight)
+        table.setItem(rowIdx, 5, it6)
+        it7 = QtWidgets.QTableWidgetItem(exDivPayDateStr)
+        it7.setTextAlignment(QtCore.Qt.AlignRight)
+        table.setItem(rowIdx, 6, it7)
         ic5 = QtGui.QIcon('exit.png')
         bt5 = QtWidgets.QPushButton(ic5, "", self.table)
         bt5.setFlat(True)
         bt5.clicked.connect(self.deleteStockClick)
-        table.setCellWidget(rowIdx, 4, bt5)
+        table.setCellWidget(rowIdx, 7, bt5)
 
     def pickStockClick(self, arg1):
 #        print (type(arg1))
