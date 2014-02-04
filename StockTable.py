@@ -143,7 +143,7 @@ class StockTable():
                                 uiCell.setBackground(self.brushNeutral)
                 
 
-    def updateTable(self, stockValues, exDivDates):
+    def updateTable(self, stockValues, exDivDates, tableTotals):
         
         # Flash any changed data
         self.updateDataFlash(self.stocksTable, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
@@ -244,14 +244,21 @@ class StockTable():
                                 bShowValue = True
                     if bShowValue:
                         uiCell.setText(cellNewText)
-        # Handle totals if required
-        if self.bTotalsRow and (rowsWithTotalValue == len(self.uiRowDefs)):
-            self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(totalProfit))
-            self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(totalVal))
         # Resize the table to fit the contents
         self.stocksTable.resizeColumnsToContents()
         self.CrossCheckValues()
+        # return totals
+        tableTotals[0] += totalVal
+        tableTotals[1] += totalProfit
+        tableTotals[2] += rowsWithTotalValue
+        tableTotals[3] += len(self.uiRowDefs)
+        return tableTotals
 
+    def SetTotals(self, tableTotals):
+        # Handle totals if required
+        if self.bTotalsRow and (tableTotals[2] == tableTotals[3]):
+            self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[1]))
+            self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[0]))
 
     def CrossCheckValues(self):
 
@@ -290,7 +297,7 @@ class StockTable():
             if sumDiff > 1:
                 pubFolder = os.path.expanduser('~Public\Documents')
                 f = open(pubFolder + "\\qtstktickdebug.txt", 'w+')
-                f.write("VALUES DON'T ADD UP" + " ColTotal = " + str(sum) + " != TotCell = " + str(sumCheck) + "\n")
+                f.write("VALUES DON'T ADD UP" + " ColTotal = " + str(sum) + " != TotCell = " + str(sumCheck) + " sumFromTab " + sumFromTab + "\n")
                 for elIdx in range(len(chkValues)):
                     for li in chkValues[elIdx]:
                         f.write(str(li) + "\t")
