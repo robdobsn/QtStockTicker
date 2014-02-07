@@ -187,7 +187,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         if curRowIdx < 0:
             curRowIdx = 0
         self.table.insertRow(curRowIdx)
-        self.createRowContent(self.table, curRowIdx, "","0","0.0")
+        self.createRowContent(self.table, curRowIdx, "","0","0.0","","0","")
         self.table.selectRow(curRowIdx)
         
     def takeRowContent(self, rowIdx):
