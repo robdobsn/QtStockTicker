@@ -45,7 +45,7 @@ class RStockTicker(QtWidgets.QMainWindow):
 #        self.exDivDates.run()
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
-        self.updateTimer.start(1000)
+        self.updateTimer.start(2000)
         self.stockSymbolList = StockSymbolList()
 #        self.stockSymbolList.getStocksFromCSV()
         self.stockSymbolList.getStocksFromWeb()

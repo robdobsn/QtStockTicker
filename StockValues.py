@@ -61,7 +61,7 @@ class StockValues:
         while self.running:
 
             # Sleep for a bit
-            time.sleep(5)
+            time.sleep(10)
 
             # Check if the stock list has been updated
             self.listUpdateLock.acquire()
