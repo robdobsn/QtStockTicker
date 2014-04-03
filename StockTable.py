@@ -149,8 +149,8 @@ class StockTable():
         self.updateDataFlash(self.stocksTable, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
         
         # Update stock table values
-        totalVal = Decimal("0.00")
-        totalProfit = Decimal("0.00")
+        totalVal = self.ToDecimal("0.00")
+        totalProfit = self.ToDecimal("0.00")
         rowsWithTotalValue = 0
         debugTotals = []
         # Iterate rows
@@ -161,11 +161,11 @@ class StockTable():
                 exDivDates.addToStockInfo(uiRowDef["sym"], stkValues)
                 if not "price" in stkValues:
                     continue
-                stkHolding = Decimal(uiRowDef["hld"])
-                stkPricePence = Decimal(stkValues["price"])
-                stkCurValue = (stkPricePence * stkHolding) / Decimal("100")
-                stkCostPerSharePence = Decimal(uiRowDef['cost'])
-                stkOrigCost = (stkCostPerSharePence * stkHolding) / Decimal("100")
+                stkHolding = self.ToDecimal(uiRowDef["hld"])
+                stkPricePence = self.ToDecimal(stkValues["price"])
+                stkCurValue = (stkPricePence * stkHolding) / self.ToDecimal("100")
+                stkCostPerSharePence = self.ToDecimal(uiRowDef['cost'])
+                stkOrigCost = (stkCostPerSharePence * stkHolding) / self.ToDecimal("100")
                 symbolName = uiRowDef['sym']
                 # Iterate columns to fill table
                 for colIdx in range(len(self.uiColDefs)):
@@ -173,9 +173,9 @@ class StockTable():
                     colValName = colDef['colValName']
                     uiCell = self.stocksTable.item(rowIdx, colIdx)
                     cellNewText = ""
-                    cellValue = Decimal(0)
+                    cellValue = self.ToDecimal(0)
                     if colDef['dataType'] == 'decimal':
-                        cellValue = Decimal("0")
+                        cellValue = self.ToDecimal("0")
                         if colValName == 'hld':
                             cellValue = stkHolding
                         elif colValName == 'cost':
@@ -190,7 +190,7 @@ class StockTable():
                             debugTotals.append((rowIdx, cellValue, totalVal))  # debug
                         else:
                             if colValName in stkValues:
-                                cellValue = Decimal(stkValues[colValName])
+                                cellValue = self.ToDecimal(stkValues[colValName])
                         # Format the value
                         cellNewText += colDef['fmtStr'].format(cellValue) if ('fmtStr' in colDef and colDef['fmtStr'] != "") else "{0:.0f}".format(cellValue)
                     else: # must be string
@@ -211,7 +211,7 @@ class StockTable():
                                 if colDef['colourBy'] == 'change':
                                     curCellVal = 0
                                     try:
-                                        curCellVal = Decimal(float(uiCell.text()))
+                                        curCellVal = self.ToDecimal(float(uiCell.text()))
                                     except:
                                         curCellVal = 0
                                     colourByVal = colourByVal - curCellVal
@@ -260,6 +260,13 @@ class StockTable():
             self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[1]))
             self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[0]))
 
+    def ToDecimal(self, value):
+        try:
+            outVal = Decimal(value)
+            return outVal
+        except:
+            return Decimal("0")
+
     def CrossCheckValues(self):
 
         # Cross-check values
@@ -278,21 +285,13 @@ class StockTable():
                     elif colDef['colValName'] == 'sym':
                         symText = uiCell.text()
                     colIdx += 1
-                val = 0
-                try:
-                    val = Decimal(sub(r'[^\d\-.]', '', valueText))
-                except:
-                    val = 0
+                val = self.ToDecimal(sub(r'[^\d\-.]', '', valueText))
                 sum += val
                 chkValues.append((symText, valueText, val, sum))
                 rowIdx += 1
 
             sumFromTab = self.stocksTable.item(self.totalsRow, self.totalValueCol).text()
-            sumCheck = 0
-            try:
-                sumCheck = Decimal(sub(r'[^\d\-.]', '', sumFromTab))
-            except:
-                sumCheck = 0
+            sumCheck = self.ToDecimal(sub(r'[^\d\-.]', '', sumFromTab))
             sumDiff = abs(sumCheck - sum)
             if sumDiff > 1:
                 pubFolder = os.path.expanduser('~Public\Documents')
