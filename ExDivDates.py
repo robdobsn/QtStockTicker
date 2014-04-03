@@ -44,7 +44,15 @@ class ExDivDates():
 
     def setFromStockHoldings(self, stockHoldings):
         itemsToAdd = ['exDivDate','exDivAmount','paymentDate']
+        exDivOnly = {}
         for stock in stockHoldings:
+            sym = stock['symbol']
+            if sym in exDivOnly:
+                if 'exDivDate' in exDivOnly[sym]:
+                    if exDivOnly[sym]['exDivDate'] != "":
+                        continue
+            exDivOnly[sym] = { 'symbol':sym, 'exDivDate':stock['exDivDate'], 'exDivAmount':stock['exDivAmount'], 'paymentDate':stock['paymentDate'] }
+        for stock in exDivOnly.values():
             if "symbol" in stock:
                 newDict = {}
                 for item in itemsToAdd:

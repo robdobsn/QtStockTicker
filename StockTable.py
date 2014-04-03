@@ -246,7 +246,7 @@ class StockTable():
                         uiCell.setText(cellNewText)
         # Resize the table to fit the contents
         self.stocksTable.resizeColumnsToContents()
-        self.CrossCheckValues()
+#        self.CrossCheckValues()
         # return totals
         tableTotals[0] += totalVal
         tableTotals[1] += totalProfit
