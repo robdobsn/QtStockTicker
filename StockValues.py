@@ -121,7 +121,7 @@ class StockValues:
                 finally:
                     self.lock.release()
 
-            if nextStockIdx + maxStocksPerPass > len(self.tickerlist):
+            if nextStockIdx + maxStocksPerPass >= len(self.tickerlist):
                 nextStockIdx = 0
             else:
                 nextStockIdx += maxStocksPerPass
