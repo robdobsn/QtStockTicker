@@ -115,11 +115,16 @@ class HostedConfigFile():
             print("PutToLocationIdx", fileIdx, "Result", reslt)
         
     def getFileWithFTP(self, locn, outFile):
-        ftp = ftplib.FTP(locn['hostURLForGet'])
-        ftp.login(locn['userName'], locn['passWord'])
-        ftp.retrbinary("RETR " + locn['filePathForGet'], outFile.write)
-        ftp.close()
-        return True
+        try:
+            ftp = ftplib.FTP(locn['hostURLForGet'])
+            ftp.login(locn['userName'], locn['passWord'])
+            ftp.retrbinary("RETR " + locn['filePathForGet'], outFile.write)
+            ftp.close()
+            print ("Got file via FTP {0}", locn['hostURLForGet'])
+            return True
+        except:
+            print ("Failed to get from FTP {0}", locn['hostURLForGet'])
+        return False
     
     def getFileWithHTTP(self, locn, outFile):
         reqFile = None
@@ -147,8 +152,10 @@ class HostedConfigFile():
         return False
 
     def getLocalFile(self, locn, outFile):
+        print ("Trying to get local file {0}", locn['hostURLForGet'] + locn['filePathForGet'])
         try:
             with open(locn['hostURLForGet'] + locn['filePathForGet'], "r") as inFile:
+                print ("Got ok")
                 return self.copyFileContents(inFile, outFile)
         except IOError as excp:
             print ("getLocalFile I/O error({0}): {1}".format(excp.errno, excp.strerror))
@@ -197,14 +204,16 @@ class HostedConfigFile():
     
     def copyFileToLocation(self, locn, fileToCopyFrom):
         success = False
-        if locn['putUsing'] == 'ftp':
-            print ("Attempting to copy file using ftp to ", locn['hostURLForPut'], locn['filePathForPut'])
-            success = self.putFileWithFTP(locn, fileToCopyFrom)
-        elif locn['putUsing'] == 'local':
-            print ("Attempting to copy file local to ", locn['hostURLForPut'], locn['filePathForPut'])
-            
-            with open(locn['hostURLForPut'] + locn['filePathForPut'], "wt") as outFile:
-                success = self.copyFileContents(fileToCopyFrom, outFile)
+        try:
+            if locn['putUsing'] == 'ftp':
+                print ("Attempting to copy file using ftp to ", locn['hostURLForPut'], locn['filePathForPut'])
+                success = self.putFileWithFTP(locn, fileToCopyFrom)
+            elif locn['putUsing'] == 'local':
+                print ("Attempting to copy file local to ", locn['hostURLForPut'], locn['filePathForPut'])
+                with open(locn['hostURLForPut'] + locn['filePathForPut'], "wt") as outFile:
+                    success = self.copyFileContents(fileToCopyFrom, outFile)
+        except:
+            print("Failed to copy file")
         return success
 
     def configFileUpdate(self, updatedData):
