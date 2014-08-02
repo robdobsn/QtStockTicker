@@ -214,8 +214,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         portfolioHeight += 10
         self.gridLayout.setRowStretch(0, watchHeight)
         self.gridLayout.setRowStretch(1, portfolioHeight)
-        self.setMinimumWidth(max(watchWidth, portfolioWidth))
-        self.setMinimumHeight(watchHeight+portfolioHeight)
+#        self.setMinimumWidth(max(watchWidth, portfolioWidth))
+#        self.setMinimumHeight(watchHeight+portfolioHeight)
         
 def main():
     app = QtWidgets.QApplication(sys.argv)
