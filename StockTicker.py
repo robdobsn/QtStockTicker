@@ -15,6 +15,8 @@ from ExDivDates import ExDivDates
 from StockTable import StockTable
 from decimal import Decimal
 
+import requests
+
 '''
 Created on 4 Sep 2013
 
@@ -87,7 +89,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.watchTables = []
         for tabIdx in range(numWatchTables):
             newTab = StockTable()
-            newTab.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 9, QtGui.QFont.Bold))
+            newTab.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 7), QtGui.QFont('SansSerif', 8, QtGui.QFont.Bold))
             self.watchTables.append(newTab)
 
 #        self.watchTable = StockTable()
@@ -99,7 +101,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.portfolioTables = []
         for tabIdx in range(numPortfolioTables):
             newTab = StockTable()
-            newTab.initTable(self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, QtGui.QFont('SansSerif', 10), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
+            newTab.initTable(self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 7), QtGui.QFont('SansSerif', 10, QtGui.QFont.Bold))
             self.portfolioTables.append(newTab)
 
         # Populate tables
@@ -195,6 +197,13 @@ class RStockTicker(QtWidgets.QMainWindow):
         for table in self.portfolioTables:
             tableTotals = table.updateTable(self.stockValues, self.exDivDates, tableTotals)
             table.SetTotals(tableTotals)
+
+        try:
+            stkValues = self.stockValues.getStockData("^FTSE")
+            url = 'http://192.168.0.229/text?<1>' + stkValues['name'] + ": " + stkValues['price'] + "  " + stkValues['change'] + " (" + stkValues['chg_percent'] + ")"
+            r = requests.get(url)
+        except:
+            print ("Failed to send stock data")
 
         # Handle window size updates
         watchWidth = 0
