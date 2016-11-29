@@ -74,7 +74,7 @@ class StockTable():
         self.stocksTable.setRowCount(totalRowsInTable)
         rowIdx = 0
         for stk in stockHolding:
-            self.stocksTable.setRowHeight(rowIdx,20)
+            self.stocksTable.setRowHeight(rowIdx,15)
             colIdx = 0
             for colDef in self.uiColDefs:
                 if colDef['colValName'] == 'profit':
