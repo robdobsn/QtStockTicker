@@ -118,18 +118,22 @@ class HostedConfigFile():
         try:
             ftp = ftplib.FTP(locn['hostURLForGet'])
             ftp.login(locn['userName'], locn['passWord'])
-            ftp.retrbinary("RETR " + locn['filePathForGet'], outFile.write)
+            # ftp.dir()
+            for filename in ftp.nlst(locn['filePathForGet']):
+                print('Getting ' + filename)
+                ftp.retrlines('RETR ' + filename, outFile.write)
+                break
             ftp.close()
             print ("Got file via FTP {0}", locn['hostURLForGet'])
             return True
-        except:
-            print ("Failed to get from FTP {0}", locn['hostURLForGet'])
+        except Exception as excp:
+            print ("Failed to get from FTP {0}, excp {1}", locn['hostURLForGet'], excp)
         return False
     
     def getFileWithHTTP(self, locn, outFile):
         reqFile = None
         try:
-            reqFile = requests.get(locn['hostURLForGet'] + locn['filePathForGet'], auth=(locn['userName'], locn['passWord']), timeout=0.5)
+            reqFile = requests.get(locn['hostURLForGet'] + locn['filePathForGet'], auth=(locn['userName'], locn['passWord']), timeout=30)
         except requests.exceptions.ConnectionError:
             print ("HTTP ConnectionError")
         except requests.exceptions.HTTPError:
