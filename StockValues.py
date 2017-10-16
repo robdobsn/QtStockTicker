@@ -1,5 +1,6 @@
 import threading
 import datetime
+import pytz
 import time
 import copy
 from urllib.request import Request, urlopen
@@ -48,20 +49,20 @@ class StockValues:
         
     def run(self):
         self.running = True
-        self.t = threading.Thread(target=self.do_thread_loop)
+        self.t = threading.Thread(target=self.stockUpdateThread)
         self.t.start()        
 
     def stop(self):
         self.running = False
         
-    def do_thread_loop(self):
+    def stockUpdateThread(self):
         firstpass = True
         nextStockIdx = 0
         maxStocksPerPass = 50
         while self.running:
 
             # Sleep for a bit
-            time.sleep(10)
+            time.sleep(1)
 
             # Check if the stock list has been updated
             self.listUpdateLock.acquire()
@@ -71,19 +72,20 @@ class StockValues:
             self.listUpdateLock.release()
 
             # Check if the market opening times are important
-            now = datetime.datetime.now()
-            open_time = now.replace( hour=self.openhour, minute=self.openmin, second=0 )
-            close_time = now.replace( hour=self.closehour, minute=self.closemin, second=0 )
+            nowInUk = datetime.datetime.now(pytz.timezone('GB'))
+            open_time = nowInUk.replace( hour=self.openhour, minute=self.openmin, second=0 )
+            close_time = nowInUk.replace( hour=self.closehour, minute=self.closemin, second=0 )
             open_day = False
             for day in self.tradingdow:
-                if ( day == datetime.datetime.today().weekday() ):
+                if ( day == nowInUk.weekday() ):
                     open_day = True
             updateNeeded = True
+            marketOpen = (nowInUk > open_time) and (nowInUk < close_time) and open_day
             if self.bOnlyUpdateWhileMarketOpen:
-                if not( firstpass or (( now > open_time) and ( now < close_time ) and open_day)):
+                if not( firstpass or marketOpen):
                     updateNeeded = False
+            self.status = "Market Open" if marketOpen else "Market Closed"
             if not updateNeeded:
-                self.status = "Market Closed"
                 continue
 
             # Check list isn't empty
@@ -91,7 +93,6 @@ class StockValues:
                 continue
 
             # Update the list
-            firstpass = False
             stocks = self.tickerlist[nextStockIdx:nextStockIdx+maxStocksPerPass]
             if len(stocks) <= 0:
                 continue
@@ -117,14 +118,21 @@ class StockValues:
                     for ticker,values in stkdata.items():
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0
-                        self.stockData[ticker]['time'] = now
+                        self.stockData[ticker]['time'] = nowInUk
                 finally:
                     self.lock.release()
 
             if nextStockIdx + maxStocksPerPass >= len(self.tickerlist):
                 nextStockIdx = 0
+                firstpass = False
             else:
                 nextStockIdx += maxStocksPerPass
+
+            delayTime = 0 if firstpass else (9 if marketOpen else 600)
+            for delayCount in range(delayTime):
+                if not self.running:
+                    break
+                time.sleep(1)
 
     def get_quotes(self, symbols):
         """

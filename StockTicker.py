@@ -31,6 +31,7 @@ class RStockTicker(QtWidgets.QMainWindow):
     currencySign = "\xA3"
     stocksViewLock = threading.Lock()
     stocksListChanged = False
+    windowTitle = ""
     
     def __init__(self):
         super(RStockTicker, self).__init__()
@@ -138,8 +139,9 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         self.setCentralWidget(gridWidget)
 #        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
-        
-        self.setWindowTitle('Stock Ticker')
+
+        self.windowTitle = 'Stock Ticker'
+        self.setWindowTitle(self.windowTitle)
         self.show()
         
     def populateTablesWithStocks(self):
@@ -191,6 +193,12 @@ class RStockTicker(QtWidgets.QMainWindow):
             self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
             self.stocksListChanged = False
         self.stocksViewLock.release()
+
+        if self.stockValues.status != "":
+            newWindowTitle = 'Stock Ticker - ' + self.stockValues.status
+            if self.windowTitle != newWindowTitle:
+                self.windowTitle = newWindowTitle
+                self.setWindowTitle(self.windowTitle)
 
         for table in self.watchTables:
             table.updateTable(self.stockValues, self.exDivDates, [Decimal("0"),Decimal("0"),0,0])

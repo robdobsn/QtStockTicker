@@ -12,22 +12,6 @@ Created on 10 Oct 2013
 @author: rob dobson
 '''
 
-class MyDelegate(QtWidgets.QItemDelegate):
-
-    def __init__(self, parent, table):
-        super(MyDelegate, self).__init__(parent)
-        self.table = table
-
-    def sizeHint(self, option, index):
-        # Get full viewport size
-        table_size = self.table.viewport().size()
-        gw = 1  # Grid line width
-        rows = self.table.rowCount() or 1
-        cols = self.table.columnCount() or 1
-        width = (table_size.width() - (gw * (cols - 1))) / cols
-        height = (table_size.height() -  (gw * (rows - 1))) / rows
-        return QtCore.QSize(width, height)
-
 class StockTable(QtWidgets.QTableWidget):
     
     uiColDefs = []
@@ -60,6 +44,7 @@ class StockTable(QtWidgets.QTableWidget):
         self.fontName = fontName
         self.idealFontSizes = idealFontSizes
         self.idealFontBoldness = idealFontBoldness
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
 
         # Table for stocks
         self.setColumnCount(len(self.uiColDefs))
@@ -78,9 +63,6 @@ class StockTable(QtWidgets.QTableWidget):
         palette = QtGui.QPalette()
         palette.setBrush(QtGui.QPalette.Base, self.brushBackground)
         self.setPalette(palette)
-        # self.delegate = MyDelegate(parent, self.stocksTable)
-        # self.stocksTable.setItemDelegate(self.delegate)
-        # self.stocksTable.resize.connect(self.resizeTable)
 
     def resizeEvent(self, newSize):
         # print("Resizing")
@@ -93,7 +75,7 @@ class StockTable(QtWidgets.QTableWidget):
         height = (table_size.height() -  (gw * (rows - 1))) / rows
         if height < 5:
             height = 5
-        print("Table height", height)
+        # print("Table height", height)
         for row in range(self.rowCount()):
             self.setRowHeight(row, height)
             fontSize = 6
@@ -105,7 +87,7 @@ class StockTable(QtWidgets.QTableWidget):
                 fontSize = 9
             if height > 40:
                 fontSize = 10
-            print("height", height, "fontsize", fontSize)
+            # print("height", height, "fontsize", fontSize)
             for col in range(self.columnCount()):
                 colFontSize = fontSize
                 if 'fontSize' in self.uiColDefs[col] and self.uiColDefs[col]['fontSize'] == 'large':
@@ -191,7 +173,7 @@ class StockTable(QtWidgets.QTableWidget):
         
         # Flash any changed data
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
-        
+
         # Update stock table values
         totalVal = self.ToDecimal("0.00")
         totalProfit = self.ToDecimal("0.00")

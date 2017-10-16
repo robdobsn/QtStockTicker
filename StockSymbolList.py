@@ -21,8 +21,16 @@ class StockSymbolList():
 
     def getStocksFromWeb(self):
         self.stockList = []
-        r = requests.get('http://www.lse.co.uk/index-constituents.asp?index=idx:asx')
-        soup = BeautifulSoup(r.text)
+        r = None
+        for getStocksAttempt in range(3):
+            try:
+                r = requests.get('http://www.lse.co.uk/index-constituents.asp?index=idx:asx')
+                break
+            except Exception as excp:
+                print("Faield to get FTSE list from LSE, attempt", getStocksAttempt)
+        if r is None:
+            return
+        soup = BeautifulSoup(r.text, "html.parser")
         for x in soup.find_all('a', attrs={'class':"linkTabs"}):
             #print (x.text)
             mtch = re.match("(.+?)\((.+?)\)", x.text)
