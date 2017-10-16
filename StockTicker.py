@@ -90,7 +90,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.watchTables = []
         for tabIdx in range(numWatchTables):
             newTab = StockTable()
-            newTab.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 9, QtGui.QFont.Bold))
+            newTab.initTable(self, self.watchTableColDefs, self.currencySign, False, "SansSerif", (9,8,9), ('','','bold'))
             self.watchTables.append(newTab)
 
 #        self.watchTable = StockTable()
@@ -102,7 +102,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.portfolioTables = []
         for tabIdx in range(numPortfolioTables):
             newTab = StockTable()
-            newTab.initTable(self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, QtGui.QFont('SansSerif', 10), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
+            newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, 'SansSerif', (10,8,11),('','', 'bold'))
             self.portfolioTables.append(newTab)
 
         # Populate tables
@@ -115,9 +115,9 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         # Add tables to grid
         for tabIdx in range(len(self.watchTables)):
-            self.gridLayout.addWidget(self.watchTables[tabIdx].stocksTable, 0, tabIdx*watchTabColSpan, 1, watchTabColSpan)
+            self.gridLayout.addWidget(self.watchTables[tabIdx], 0, tabIdx*watchTabColSpan, 1, watchTabColSpan)
         for tabIdx in range(len(self.portfolioTables)):
-            self.gridLayout.addWidget(self.portfolioTables[tabIdx].stocksTable, 1, tabIdx*portfolioTabColSpan, 1, portfolioTabColSpan)
+            self.gridLayout.addWidget(self.portfolioTables[tabIdx], 1, tabIdx*portfolioTabColSpan, 1, portfolioTabColSpan)
         
         # Edit action
         editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)        
@@ -223,8 +223,8 @@ class RStockTicker(QtWidgets.QMainWindow):
             portfolioHeight = max(portfolioHeight, optSizePortfolio[1])
         portfolioWidth += 20
         portfolioHeight += 10
-        self.gridLayout.setRowStretch(0, watchHeight)
-        self.gridLayout.setRowStretch(1, portfolioHeight)
+        # self.gridLayout.setRowStretch(0, watchHeight)
+        # self.gridLayout.setRowStretch(1, portfolioHeight)
 #        self.setMinimumWidth(max(watchWidth, portfolioWidth))
 #        self.setMinimumHeight(watchHeight+portfolioHeight)
         

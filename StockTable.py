@@ -12,7 +12,23 @@ Created on 10 Oct 2013
 @author: rob dobson
 '''
 
-class StockTable():
+class MyDelegate(QtWidgets.QItemDelegate):
+
+    def __init__(self, parent, table):
+        super(MyDelegate, self).__init__(parent)
+        self.table = table
+
+    def sizeHint(self, option, index):
+        # Get full viewport size
+        table_size = self.table.viewport().size()
+        gw = 1  # Grid line width
+        rows = self.table.rowCount() or 1
+        cols = self.table.columnCount() or 1
+        width = (table_size.width() - (gw * (cols - 1))) / cols
+        height = (table_size.height() -  (gw * (rows - 1))) / rows
+        return QtCore.QSize(width, height)
+
+class StockTable(QtWidgets.QTableWidget):
     
     uiColDefs = []
     uiRowDefs = []
@@ -29,28 +45,27 @@ class StockTable():
     gradient.setColorAt(1.0, QtGui.QColor(0, 0, 0))
     brushBackground = QtGui.QBrush(gradient)
     brushNeutral = QtGui.QBrush(QtGui.QColor(0, 0, 0, 0))
-    totalsRow = 0
+    totalsRow = -1
     totalProfitCol = 0
     totalValueCol = 0
     dataFlashTimerStarted = False
     dataFlashTimer = QTime();
     dataFlashTimeMs = 400;
     currencySign = ""
- 
-    def initTable(self, colDefs, currencySign, bTotalsRow, normalFont, smallFont, largeFont):
+
+    def initTable(self, parent, colDefs, currencySign, bTotalsRow, fontName, idealFontSizes, idealFontBoldness):
         self.uiColDefs = colDefs
         self.currencySign = currencySign
         self.bTotalsRow = bTotalsRow
-        self.normalFont = normalFont
-        self.smallFont = smallFont
-        self.largeFont = largeFont
-        
+        self.fontName = fontName
+        self.idealFontSizes = idealFontSizes
+        self.idealFontBoldness = idealFontBoldness
+
         # Table for stocks
-        self.stocksTable = QtWidgets.QTableWidget()
-        self.stocksTable.setColumnCount(len(self.uiColDefs))
-        self.stocksTable.setShowGrid(False)
-        self.stocksTable.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.stocksTable.verticalHeader().setVisible(False)
+        self.setColumnCount(len(self.uiColDefs))
+        self.setShowGrid(False)
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.verticalHeader().setVisible(False)
         colIdx = 0
         for colDef in self.uiColDefs:
             hdrItem = QtWidgets.QTableWidgetItem(colDef['colLbl'])
@@ -58,37 +73,67 @@ class StockTable():
                 hdrItem.setTextAlignment(QtCore.Qt.AlignRight)
             else:
                 hdrItem.setTextAlignment(QtCore.Qt.AlignLeft)
-            hdrItem.setFont(self.normalFont)
-            self.stocksTable.setHorizontalHeaderItem(colIdx, hdrItem)
+            self.setHorizontalHeaderItem(colIdx, hdrItem)
             colIdx += 1
         palette = QtGui.QPalette()
         palette.setBrush(QtGui.QPalette.Base, self.brushBackground)
-        self.stocksTable.setPalette(palette)
+        self.setPalette(palette)
+        # self.delegate = MyDelegate(parent, self.stocksTable)
+        # self.stocksTable.setItemDelegate(self.delegate)
+        # self.stocksTable.resize.connect(self.resizeTable)
 
-        
+    def resizeEvent(self, newSize):
+        # print("Resizing")
+        # Get full viewport size
+        table_size = self.viewport().size()
+        gw = 0  # Grid line width
+        rows = self.rowCount() or 1
+        cols = self.columnCount() or 1
+        width = (table_size.width() - (gw * (cols - 1))) / cols
+        height = (table_size.height() -  (gw * (rows - 1))) / rows
+        if height < 5:
+            height = 5
+        print("Table height", height)
+        for row in range(self.rowCount()):
+            self.setRowHeight(row, height)
+            fontSize = 6
+            if height > 15:
+                fontSize = 7
+            if height > 22:
+                fontSize = 8
+            if height > 30:
+                fontSize = 9
+            if height > 40:
+                fontSize = 10
+            print("height", height, "fontsize", fontSize)
+            for col in range(self.columnCount()):
+                colFontSize = fontSize
+                if 'fontSize' in self.uiColDefs[col] and self.uiColDefs[col]['fontSize'] == 'large':
+                    if colFontSize == 9:
+                        colFontSize = 10
+                fontToUse = QtGui.QFont('SansSerif', fontSize)
+                if row == self.totalsRow:
+                    fontToUse = QtGui.QFont('SansSerif', fontSize+1)
+                    fontToUse.setBold(True)
+                self.item(row, col).setFont(fontToUse)
+
     def populateTable(self, stockHolding):
         
         # Stock items table
         self.uiRowDefs = []
         totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0)
-        self.stocksTable.setRowCount(totalRowsInTable)
+        self.setRowCount(totalRowsInTable)
         rowIdx = 0
         for stk in stockHolding:
-            self.stocksTable.setRowHeight(rowIdx,15)
+            self.setRowHeight(rowIdx,15)
             colIdx = 0
             for colDef in self.uiColDefs:
                 if colDef['colValName'] == 'profit':
                     self.totalProfitCol = colIdx
                 elif colDef['colValName'] == 'totalvalue':
                     self.totalValueCol = colIdx
-                if 'fontSize' in colDef and colDef['fontSize'] == 'large':
-                    font1 = self.largeFont
-                elif 'fontSize' in colDef and colDef['fontSize'] == 'small':
-                    font1 = self.smallFont
-                else:
-                    font1 = self.normalFont
-                it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignRight if ('align' in colDef and colDef['align'] == 'right') else QtCore.Qt.AlignLeft, font1)
-                self.stocksTable.setItem(rowIdx, colIdx, it1)
+                it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignRight if ('align' in colDef and colDef['align'] == 'right') else QtCore.Qt.AlignLeft)
+                self.setItem(rowIdx, colIdx, it1)
                 colIdx += 1
             rowDef = { 'sym':stk['symbol'], 'hld':stk['holding'], 'cost':stk['cost'] }
             self.uiRowDefs.append(rowDef)
@@ -99,32 +144,31 @@ class StockTable():
             # fill totals row of table with empty cells
             colIdx = 0
             for colDef in self.uiColDefs:
-                it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignLeft, self.normalFont)
-                self.stocksTable.setItem(self.totalsRow, colIdx, it1)
+                it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignLeft)
+                self.setItem(self.totalsRow, colIdx, it1)
                 colIdx += 1
             #Totals
-            itTotLabel = self.makeTableItem("Totals", self.brushTotals, QtCore.Qt.AlignLeft, self.normalFont)
-            self.stocksTable.setItem(self.totalsRow, min(self.totalProfitCol, self.totalValueCol)-1, itTotLabel)
-            itTotProfitVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, self.normalFont)
-            self.stocksTable.setItem(self.totalsRow, self.totalProfitCol, itTotProfitVal)
-            itTotalVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight, self.normalFont)
-            self.stocksTable.setItem(self.totalsRow, self.totalValueCol, itTotalVal)
+            itTotLabel = self.makeTableItem("Totals", self.brushTotals, QtCore.Qt.AlignLeft)
+            self.setItem(self.totalsRow, min(self.totalProfitCol, self.totalValueCol)-1, itTotLabel)
+            itTotProfitVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight)
+            self.setItem(self.totalsRow, self.totalProfitCol, itTotProfitVal)
+            itTotalVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight)
+            self.setItem(self.totalsRow, self.totalValueCol, itTotalVal)
 
-    def makeTableItem(self, txt, foreGnd, align, font):
+    def makeTableItem(self, txt, foreGnd, align):
         it1 = QtWidgets.QTableWidgetItem(txt)
         it1.setForeground(foreGnd)
         it1.setTextAlignment(align)
-        it1.setFont(font)
         it1.setFlags(it1.flags() ^ (QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable))
         return it1
     
     def getOptimumTableSize(self):
-        w = self.stocksTable.verticalHeader().width() + 4
-        for i in range(self.stocksTable.columnCount()):
-            w += self.stocksTable.columnWidth(i)
-        h = self.stocksTable.horizontalHeader().height() + 4
-        for i in range(self.stocksTable.rowCount()):
-            h += self.stocksTable.rowHeight(i)
+        w = self.verticalHeader().width() + 4
+        for i in range(self.columnCount()):
+            w += self.columnWidth(i)
+        h = self.horizontalHeader().height() + 4
+        for i in range(self.rowCount()):
+            h += self.rowHeight(i)
         return (w,h)
     
     def clearDataFlash(self):
@@ -146,7 +190,7 @@ class StockTable():
     def updateTable(self, stockValues, exDivDates, tableTotals):
         
         # Flash any changed data
-        self.updateDataFlash(self.stocksTable, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
+        self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
         
         # Update stock table values
         totalVal = self.ToDecimal("0.00")
@@ -171,7 +215,7 @@ class StockTable():
                 for colIdx in range(len(self.uiColDefs)):
                     colDef = self.uiColDefs[colIdx]
                     colValName = colDef['colValName']
-                    uiCell = self.stocksTable.item(rowIdx, colIdx)
+                    uiCell = self.item(rowIdx, colIdx)
                     cellNewText = ""
                     cellValue = self.ToDecimal(0)
                     if colDef['dataType'] == 'decimal':
@@ -245,7 +289,7 @@ class StockTable():
                     if bShowValue:
                         uiCell.setText(cellNewText)
         # Resize the table to fit the contents
-        self.stocksTable.resizeColumnsToContents()
+        self.resizeColumnsToContents()
 #        self.CrossCheckValues()
         # return totals
         tableTotals[0] += totalVal
@@ -257,8 +301,8 @@ class StockTable():
     def SetTotals(self, tableTotals):
         # Handle totals if required
         if self.bTotalsRow and (tableTotals[2] == tableTotals[3]):
-            self.stocksTable.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[1]))
-            self.stocksTable.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[0]))
+            self.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[1]))
+            self.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[0]))
 
     def ToDecimal(self, value):
         try:
@@ -279,7 +323,7 @@ class StockTable():
                 valueText = ""
                 symText = ""
                 for colDef in self.uiColDefs:
-                    uiCell = self.stocksTable.item(rowIdx, colIdx)
+                    uiCell = self.item(rowIdx, colIdx)
                     if colDef['colValName'] == 'totalvalue':
                         valueText = uiCell.text()
                     elif colDef['colValName'] == 'sym':
@@ -290,7 +334,7 @@ class StockTable():
                 chkValues.append((symText, valueText, val, sum))
                 rowIdx += 1
 
-            sumFromTab = self.stocksTable.item(self.totalsRow, self.totalValueCol).text()
+            sumFromTab = self.item(self.totalsRow, self.totalValueCol).text()
             sumCheck = self.ToDecimal(sub(r'[^\d\-.]', '', sumFromTab))
             sumDiff = abs(sumCheck - sum)
             if sumDiff > 1:
@@ -303,9 +347,9 @@ class StockTable():
                     f.write("\n")
                 f.write("\n")
                 f.close()
-                self.stocksTable.item(self.totalsRow, self.totalValueCol).setBackground(self.brushRed)
+                self.item(self.totalsRow, self.totalValueCol).setBackground(self.brushRed)
             else:
-                self.stocksTable.item(self.totalsRow, self.totalValueCol).setBackground(self.brushNeutral)
+                self.item(self.totalsRow, self.totalValueCol).setBackground(self.brushNeutral)
 
 
 
