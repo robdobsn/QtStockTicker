@@ -118,7 +118,8 @@ class StockSettingsDialog(QtWidgets.QDialog):
 
         self.setLayout(vLayout)
         self.setWindowTitle('Edit stocks')
-        self.setMinimumWidth(800)
+        self.setMinimumWidth(1200)
+        self.setMinimumHeight(700)
         
         self.table.setFocus()
         #self.show()

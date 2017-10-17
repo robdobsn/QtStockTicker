@@ -75,7 +75,8 @@ class PickStockDialog(QtWidgets.QDialog):
         self.setLayout(grid)
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Tool)
         self.setWindowTitle('Pick Stock')
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(800)
         
     def stockSelected(self):
         if len(self.table.selectedItems()) <= 0:

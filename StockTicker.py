@@ -142,6 +142,7 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         self.windowTitle = 'Stock Ticker'
         self.setWindowTitle(self.windowTitle)
+        self.resize(1280,800)
         self.show()
         
     def populateTablesWithStocks(self):
