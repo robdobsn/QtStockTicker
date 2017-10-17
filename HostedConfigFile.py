@@ -54,7 +54,7 @@ class HostedConfigFile():
         for locn in self.hostedDataLocations:
             # Get temp file
             bFileLoadOk = False
-            fileVersion = -1
+            fileVersion = { "ver":-1, "source":"" }
             temporaryFile = tempfile.TemporaryFile('w+t', delete=True)
             if locn['getUsing'] == 'ftp':
                 bFileLoadOk = self.getFileWithFTP(locn, temporaryFile)
@@ -68,7 +68,7 @@ class HostedConfigFile():
                 # Read the version info from the file
                 jsonData = json.load(temporaryFile)
                 if 'FileVersion' in jsonData:
-                    fileVersion = int(jsonData['FileVersion'])
+                    fileVersion = {"ver":int(jsonData['FileVersion']), "source":(locn["sourceName"] if "sourceName" in locn else "")}
             else:
                 tmpFiles.append(None)
                 temporaryFile.close()
@@ -78,8 +78,8 @@ class HostedConfigFile():
         latestVersion = -1
         latestFileIdx = -1
         for fileIdx in range(len(fileVersions)):
-            if latestVersion < fileVersions[fileIdx]:
-                latestVersion = fileVersions[fileIdx]
+            if latestVersion < fileVersions[fileIdx]["ver"]:
+                latestVersion = fileVersions[fileIdx]["ver"]
                 latestFileIdx = fileIdx
         # Check if we failed to get a valid file from anywhere
         if latestFileIdx == -1:
@@ -92,8 +92,8 @@ class HostedConfigFile():
         # Write back to versions that are not latest
         for fileIdx in range(len(fileVersions)):
             if fileVersions[fileIdx] != -1:
-                print("FileIdx", fileIdx, "Version", fileVersions[fileIdx])
-            if latestVersion != fileVersions[fileIdx]:
+                print("FileIdx", fileIdx, "Version", fileVersions[fileIdx]["ver"], "Source",fileVersions[fileIdx]["source"])
+            if latestVersion != fileVersions[fileIdx]["ver"]:
                 self.copyFileToLocation(self.hostedDataLocations[fileIdx], tmpFiles[latestFileIdx])
         # Get contents of latest file
         print("LatestFileIdx", latestFileIdx, "Version", latestVersion)
@@ -124,10 +124,10 @@ class HostedConfigFile():
                 ftp.retrlines('RETR ' + filename, outFile.write)
                 break
             ftp.close()
-            print ("Got file via FTP {0}", locn['hostURLForGet'])
+            print ("Got file via FTP ", locn['hostURLForGet'])
             return True
         except Exception as excp:
-            print ("Failed to get from FTP {0}, excp {1}", locn['hostURLForGet'], excp)
+            print ("Failed to get from FTP", locn['hostURLForGet'], "excp", excp)
         return False
     
     def getFileWithHTTP(self, locn, outFile):
@@ -156,7 +156,7 @@ class HostedConfigFile():
         return False
 
     def getLocalFile(self, locn, outFile):
-        print ("Trying to get local file {0}", locn['hostURLForGet'] + locn['filePathForGet'])
+        print ("Trying to get local file ", locn['hostURLForGet'] + locn['filePathForGet'], "...", end="")
         try:
             with open(locn['hostURLForGet'] + locn['filePathForGet'], "r") as inFile:
                 print ("Got ok")

@@ -23,6 +23,7 @@ class StockValues:
         self.closehour = 16
         self.closemin = 30
         self.tradingdow = 0, 1, 2, 3, 4
+        self.dataUpdatedSinceLastUIUpdate = False
         self.stockData = {}
         self.lock = threading.Lock()
         self.status = ""
@@ -35,6 +36,11 @@ class StockValues:
         self.listUpdateLock.acquire()
         self.pendingTickerlist = yahooList
         self.listUpdateLock.release()
+
+    def checkAndSetUIUpdateDataChange(self):
+        tmpDataChange = self.dataUpdatedSinceLastUIUpdate
+        self.dataUpdatedSinceLastUIUpdate = False
+        return tmpDataChange
 
     def getStockData(self, sym):
         self.lock.acquire()
@@ -65,10 +71,14 @@ class StockValues:
             time.sleep(1)
 
             # Check if the stock list has been updated
+            updateNeeded = False
             self.listUpdateLock.acquire()
             if self.pendingTickerlist != None:
                 self.tickerlist = self.pendingTickerlist
                 self.pendingTickerlist = None
+                self.dataUpdatedSinceLastUIUpdate = True
+                # print("data up = true")
+                updateNeeded = True
             self.listUpdateLock.release()
 
             # Check if the market opening times are important
@@ -79,12 +89,12 @@ class StockValues:
             for day in self.tradingdow:
                 if ( day == nowInUk.weekday() ):
                     open_day = True
-            updateNeeded = True
+            forceUpdate = firstpass
             marketOpen = (nowInUk > open_time) and (nowInUk < close_time) and open_day
-            if self.bOnlyUpdateWhileMarketOpen:
-                if not( firstpass or marketOpen):
-                    updateNeeded = False
+            if not self.bOnlyUpdateWhileMarketOpen or marketOpen:
+                forceUpdate = True
             self.status = "Market Open" if marketOpen else "Market Closed"
+            updateNeeded = updateNeeded or forceUpdate
             if not updateNeeded:
                 continue
 
@@ -116,6 +126,11 @@ class StockValues:
                 try:
                     self.lock.acquire()
                     for ticker,values in stkdata.items():
+                        for k,v in values.items():
+                            if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
+                                self.dataUpdatedSinceLastUIUpdate = True
+                                # print("DataUPDATE = TRUE")
+                                break
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0
                         self.stockData[ticker]['time'] = nowInUk
@@ -127,6 +142,8 @@ class StockValues:
                 firstpass = False
             else:
                 nextStockIdx += maxStocksPerPass
+
+            # print("data updated", self.dataUpdatedSinceLastGot)
 
             delayTime = 0 if firstpass else (9 if marketOpen else 600)
             for delayCount in range(delayTime):

@@ -200,6 +200,19 @@ class RStockTicker(QtWidgets.QMainWindow):
                 self.windowTitle = newWindowTitle
                 self.setWindowTitle(self.windowTitle)
 
+        # Update data flash
+        for table in self.watchTables:
+            table.updateFlash()
+        for table in self.portfolioTables:
+            table.updateFlash()
+
+        # Check if main UI update required
+        if not self.stockValues.checkAndSetUIUpdateDataChange():
+            # print("No Update Required")
+            return
+        # else:
+        #     print("Doing update")
+
         for table in self.watchTables:
             table.updateTable(self.stockValues, self.exDivDates, [Decimal("0"),Decimal("0"),0,0])
         tableTotals = [Decimal("0"),Decimal("0"),0,0]
@@ -216,21 +229,21 @@ class RStockTicker(QtWidgets.QMainWindow):
                 print ("Failed to send stock data")
 
         # Handle window size updates
-        watchWidth = 0
-        watchHeight = 0
-        portfolioWidth = 0
-        portfolioHeight = 0
-        for table in self.watchTables:
-            optSizeWatch = table.getOptimumTableSize()
-            watchWidth += optSizeWatch[0] + 20
-            watchHeight = max(watchHeight, optSizeWatch[1])
-        watchHeight += 10
-        for table in self.portfolioTables:
-            optSizePortfolio = table.getOptimumTableSize()
-            portfolioWidth += optSizePortfolio[0] + 20
-            portfolioHeight = max(portfolioHeight, optSizePortfolio[1])
-        portfolioWidth += 20
-        portfolioHeight += 10
+        # watchWidth = 0
+        # watchHeight = 0
+        # portfolioWidth = 0
+        # portfolioHeight = 0
+        # for table in self.watchTables:
+        #     optSizeWatch = table.getOptimumTableSize()
+        #     watchWidth += optSizeWatch[0] + 20
+        #     watchHeight = max(watchHeight, optSizeWatch[1])
+        # watchHeight += 10
+        # for table in self.portfolioTables:
+        #     optSizePortfolio = table.getOptimumTableSize()
+        #     portfolioWidth += optSizePortfolio[0] + 20
+        #     portfolioHeight = max(portfolioHeight, optSizePortfolio[1])
+        # portfolioWidth += 20
+        # portfolioHeight += 10
         # self.gridLayout.setRowStretch(0, watchHeight)
         # self.gridLayout.setRowStretch(1, portfolioHeight)
 #        self.setMinimumWidth(max(watchWidth, portfolioWidth))

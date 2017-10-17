@@ -13,7 +13,7 @@ Created on 10 Oct 2013
 '''
 
 class StockTable(QtWidgets.QTableWidget):
-    
+
     uiColDefs = []
     uiRowDefs = []
     brushRed = QtGui.QBrush(QtGui.QColor(200, 0, 0))
@@ -167,13 +167,12 @@ class StockTable(QtWidgets.QTableWidget):
                         if 'colourCode' in colDef:
                             if colDef['colourCode'] == 'FlashPosNeg':
                                 uiCell.setBackground(self.brushNeutral)
-                
 
-    def updateTable(self, stockValues, exDivDates, tableTotals):
-        
+    def updateFlash(self):
         # Flash any changed data
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
 
+    def updateTable(self, stockValues, exDivDates, tableTotals):
         # Update stock table values
         totalVal = self.ToDecimal("0.00")
         totalProfit = self.ToDecimal("0.00")
