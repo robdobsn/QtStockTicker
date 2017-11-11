@@ -7,7 +7,7 @@ from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QTimer
 
 from StockHoldings import StockHoldings
-from StockValues import StockValues
+from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
 from StockSettingsDialog import StockSettingsDialog
 from StockSymbolList import StockSymbolList
 from HostedConfigFile import HostedConfigFile
@@ -32,6 +32,8 @@ class RStockTicker(QtWidgets.QMainWindow):
     stocksViewLock = threading.Lock()
     stocksListChanged = False
     windowTitle = ""
+    MARKET_OPEN_CHECK_TICKS = 60
+    ticksBeforeMarketOpenCheck = MARKET_OPEN_CHECK_TICKS
     
     def __init__(self):
         super(RStockTicker, self).__init__()
@@ -42,7 +44,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         configData = self.hostedConfigFile.getConfigDataFromLocation()
         self.stockHoldings.setupFromConfigData(configData)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
-        self.stockValues = StockValues()
+        self.stockValues = StockValues_InteractiveBrokers()
         self.stockValues.setStocks(heldStockSymbols)
         self.stockValues.run()
         self.exDivDates = ExDivDates()
@@ -179,7 +181,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.hostedConfigFile.configFileUpdate(configData)
         
     def closeEvent(self, event):
-        print('Stopping')
+        print('StockTicker: Stopping')
         self.stockValues.stop()
         self.exDivDates.stop()
         self.updateTimer.stop()
@@ -187,19 +189,27 @@ class RStockTicker(QtWidgets.QMainWindow):
         
     def updateStockValues(self):
         # Check if stocks information has changed
+        forceTableUpdate = False
         self.stocksViewLock.acquire()
         if self.stocksListChanged:
-            print ("Stock list changed")
+            print ("StockTicker: Stock list changed")
             self.populateTablesWithStocks()
             self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
             self.stocksListChanged = False
+            forceTableUpdate = True
         self.stocksViewLock.release()
 
-        if self.stockValues.status != "":
-            newWindowTitle = 'Stock Ticker - ' + self.stockValues.status
-            if self.windowTitle != newWindowTitle:
-                self.windowTitle = newWindowTitle
-                self.setWindowTitle(self.windowTitle)
+        # Update the window title every now and again with market open status
+        if (self.ticksBeforeMarketOpenCheck == 0):
+            stat = self.stockValues.getMarketOpenStatus()
+            if stat != "":
+                newWindowTitle = 'Stock Ticker - ' + stat
+                if self.windowTitle != newWindowTitle:
+                    self.windowTitle = newWindowTitle
+                    self.setWindowTitle(self.windowTitle)
+            self.ticksBeforeMarketOpenCheck = self.MARKET_OPEN_CHECK_TICKS
+        else:
+            self.ticksBeforeMarketOpenCheck -= 1
 
         # Update data flash
         for table in self.watchTables:
@@ -207,18 +217,22 @@ class RStockTicker(QtWidgets.QMainWindow):
         for table in self.portfolioTables:
             table.updateFlash()
 
-        # Check if main UI update required
-        if not self.stockValues.checkAndSetUIUpdateDataChange():
-            # print("No Update Required")
-            return
-        # else:
-        #     print("Doing update")
+        # Get list of stocks updated since last UI update
+        changedStockDict = None
+        if not forceTableUpdate:
+            changedStockDict = self.stockValues.getMapOfStocksChangedSinceUIUpdated()
+            if (changedStockDict) == 0:
+                # print("No Update Required")
+                return
+            # else:
+            #     print("Doing update")
 
+        # Update the tables
         for table in self.watchTables:
-            table.updateTable(self.stockValues, self.exDivDates, [Decimal("0"),Decimal("0"),0,0])
+            table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [Decimal("0"),Decimal("0"),0,0])
         tableTotals = [Decimal("0"),Decimal("0"),0,0]
         for table in self.portfolioTables:
-            tableTotals = table.updateTable(self.stockValues, self.exDivDates, tableTotals)
+            tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals)
             table.SetTotals(tableTotals)
 
         if SEND_TO_MESSAGE_BOARD:
@@ -227,7 +241,7 @@ class RStockTicker(QtWidgets.QMainWindow):
                 url = 'http://192.168.0.229/text?<1>' + stkValues['name'] + ": " + stkValues['price'] + "  " + stkValues['change'] + " (" + stkValues['chg_percent'] + ")"
                 r = requests.get(url)
             except:
-                print ("Failed to send stock data")
+                print ("StockTicker: Failed to send stock data to LED Panel")
 
         # Handle window size updates
         # watchWidth = 0

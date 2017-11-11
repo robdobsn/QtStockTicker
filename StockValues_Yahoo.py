@@ -11,7 +11,7 @@ Created on 24 Sep 2013
 @author: rob dobson
 '''
 
-class StockValues:
+class StockValues_Yahoo:
     bOnlyUpdateWhileMarketOpen = False
     
     def __init__(self):
@@ -30,11 +30,11 @@ class StockValues:
         self.listUpdateLock = threading.Lock()
         
     def setStocks(self, stockList):
-        yahooList = []
+        curList = []
         for sym in stockList:
-            yahooList.append(sym)
+            curList.append(sym)
         self.listUpdateLock.acquire()
-        self.pendingTickerlist = yahooList
+        self.pendingTickerlist = curList
         self.listUpdateLock.release()
 
     def checkAndSetUIUpdateDataChange(self):

@@ -1,0 +1,216 @@
+import threading
+import datetime
+import pytz
+import time
+import copy
+from urllib.request import Request, urlopen
+import json
+
+'''
+Created on 11 Nov 2017
+
+@author: rob dobson
+'''
+
+class StockValues_Google:
+    bOnlyUpdateWhileMarketOpen = True
+    pendingTickerlist = None
+
+    def __init__(self, symbolChangedCallback):
+        self._symbolChangedCallback = symbolChangedCallback
+        self.tickerlist = []
+        self.running = False
+        self.openhour = 8
+        self.openmin = 0
+        self.closehour = 16
+        self.closemin = 30
+        self.tradingdow = 0, 1, 2, 3, 4
+        self.dataUpdatedSinceLastUIUpdate = False
+        self.stockData = {}
+        self.lock = threading.Lock()
+        self.status = ""
+        self.listUpdateLock = threading.Lock()
+        self.start()
+
+    def addStock(self, symbol):
+        print("Adding symbol", symbol, "to be got from Google")
+        self.listUpdateLock.acquire()
+        curList = []
+        for sym in self.tickerlist:
+            curList.append(sym)
+        if self.pendingTickerlist is not None:
+            for sym in self.pendingTickerlist:
+                if sym not in curList:
+                    curList.append(sym)
+        if symbol not in curList:
+            curList.append(symbol)
+        self.pendingTickerlist = curList
+        self.listUpdateLock.release()
+
+    def setStocks(self, stockList):
+        curList = []
+        for sym in stockList:
+            curList.append(sym)
+        self.listUpdateLock.acquire()
+        self.pendingTickerlist = curList
+        self.listUpdateLock.release()
+
+    def checkAndSetUIUpdateDataChange(self):
+        tmpDataChange = self.dataUpdatedSinceLastUIUpdate
+        self.dataUpdatedSinceLastUIUpdate = False
+        return tmpDataChange
+
+    def getStockInfoData(self, sym):
+        self.lock.acquire()
+        dat = None
+        if sym in self.stockData:
+            dat = copy.copy(self.stockData[sym])
+        self.lock.release()
+        return dat
+    
+    def setOnlyUpdateWhenMarketOpen(self, onlyWhenOpen):
+        self.bOnlyUpdateWhileMarketOpen = onlyWhenOpen
+        
+    def start(self):
+        self.running = True
+        self.t = threading.Thread(target=self.stockUpdateThread)
+        self.t.start()        
+
+    def stop(self):
+        self.running = False
+        
+    def stockUpdateThread(self):
+        firstpass = True
+        nextStockIdx = 0
+        maxStocksPerPass = 1
+        for delayCount in range(20):
+            if not self.running:
+                break
+            time.sleep(1)
+
+        while self.running:
+            # Check if the stock list has been updated
+            updateNeeded = False
+            self.listUpdateLock.acquire()
+            if self.pendingTickerlist is not None:
+                self.tickerlist = self.pendingTickerlist
+                self.pendingTickerlist = None
+                self.dataUpdatedSinceLastUIUpdate = True
+                # print("data up = true")
+                updateNeeded = True
+            self.listUpdateLock.release()
+
+            # Check if the market opening times are important
+            nowInUk = datetime.datetime.now(pytz.timezone('GB'))
+            open_time = nowInUk.replace( hour=self.openhour, minute=self.openmin, second=0 )
+            close_time = nowInUk.replace( hour=self.closehour, minute=self.closemin, second=0 )
+            open_day = False
+            for day in self.tradingdow:
+                if ( day == nowInUk.weekday() ):
+                    open_day = True
+            forceUpdate = firstpass
+            marketOpen = (nowInUk > open_time) and (nowInUk < close_time) and open_day
+            if not self.bOnlyUpdateWhileMarketOpen or marketOpen:
+                forceUpdate = True
+            self.status = "Market Open" if marketOpen else "Market Closed"
+            updateNeeded = updateNeeded or forceUpdate
+            if not updateNeeded:
+                continue
+
+            # Check list isn't empty
+            if len(self.tickerlist) <= 0:
+                continue
+
+            # Update the list
+            stocks = self.tickerlist[nextStockIdx:nextStockIdx+maxStocksPerPass]
+            if len(stocks) <= 0:
+                continue
+
+            stkdataValid = False
+            try:
+                stkdata = self.get_quotes(stocks)
+                stkdataValid = True
+            except:
+                print ("get_quote failed for " + str(stocks[0]))
+                self.status = "failed for " + str(stocks[0])
+                # self.lock.acquire()
+                # if not ticker in self.stockData:
+                #     self.stockData[ticker] = {}
+                #     self.stockData[ticker]['failCount'] = 1
+                # else:
+                #     self.stockData[ticker]['failCount'] += 1
+                # self.lock.release()
+
+            if stkdataValid:
+                try:
+                    self.lock.acquire()
+                    for ticker,values in stkdata.items():
+                        for k,v in values.items():
+                            if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
+                                self.dataUpdatedSinceLastUIUpdate = True
+                                self._symbolChangedCallback(ticker)
+                                # print("DataUPDATE = TRUE")
+                                break
+                        self.stockData[ticker] = values
+                        self.stockData[ticker]['failCount'] = 0
+                        self.stockData[ticker]['time'] = nowInUk
+                        print("Stock update", self.stockData[ticker])
+                finally:
+                    self.lock.release()
+
+            if nextStockIdx + maxStocksPerPass >= len(self.tickerlist):
+                nextStockIdx = 0
+                firstpass = False
+            else:
+                nextStockIdx += maxStocksPerPass
+
+            # print("data updated", self.dataUpdatedSinceLastGot)
+
+            delayTime = 10 if firstpass else (120 if marketOpen else 1800)
+            for delayCount in range(delayTime):
+                if not self.running:
+                    break
+                time.sleep(1)
+
+    def get_quotes(self, symbols):
+        """
+        Get all available quote data for the given ticker symbols.
+        Returns a dictionary.
+        """
+        quotes = {}
+        for symbol in symbols:
+            stockInfo = self._request(symbol)
+            stkData = json.loads(stockInfo)
+            if len(stkData) > 0:
+                stkFirst = stkData[0]
+                quotes[symbol] = dict( name=stkFirst["name"] )
+                if "l" in stkFirst:
+                    quotes[symbol]["price"] = stkFirst["l"]
+                if "c" in stkFirst:
+                    quotes[symbol]["change"] = stkFirst["c"]
+                if "vo" in stkFirst:
+                    quotes[symbol]["volume"] = stkFirst["vo"]
+                if "cp" in stkFirst:
+                    quotes[symbol]["chg_percent"] = stkFirst["cp"]
+        return quotes
+
+    # def stripQuotes(self, inStr):
+    #     if inStr.startswith('"') and inStr.endswith('"'):
+    #         inStr = inStr[1:-1]
+    #     return inStr
+    
+    def _request(self, symbol):
+        url = 'https://finance.google.com/finance?output=json&q=' + symbol
+        print ("Requesting " + url)
+        req = Request(url)
+        resp = urlopen(req)
+        readVal = resp.read()
+        jsonStr = str(readVal.decode('utf-8').strip())
+        # Check if it starts with // and remove if so
+        slashslashPos = jsonStr.find("//")
+        if slashslashPos >= 0 and slashslashPos < 10:
+            jsonStr = jsonStr[slashslashPos+2:].strip()
+        if jsonStr.find("{") == 0:
+            jsonStr = "[" + jsonStr + "]"
+        # print("Response", jsonStr)
+        return jsonStr

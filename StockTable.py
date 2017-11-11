@@ -32,6 +32,7 @@ class StockTable(QtWidgets.QTableWidget):
     totalsRow = -1
     totalProfitCol = 0
     totalValueCol = 0
+    totalCommentCol = 0
     dataFlashTimerStarted = False
     dataFlashTimer = QTime();
     dataFlashTimeMs = 400;
@@ -114,6 +115,8 @@ class StockTable(QtWidgets.QTableWidget):
                     self.totalProfitCol = colIdx
                 elif colDef['colValName'] == 'totalvalue':
                     self.totalValueCol = colIdx
+                elif colDef['colValName'] == 'volume':
+                    self.totalCommentCol = colIdx
                 it1 = self.makeTableItem("", self.brushText, QtCore.Qt.AlignRight if ('align' in colDef and colDef['align'] == 'right') else QtCore.Qt.AlignLeft)
                 self.setItem(rowIdx, colIdx, it1)
                 colIdx += 1
@@ -136,6 +139,8 @@ class StockTable(QtWidgets.QTableWidget):
             self.setItem(self.totalsRow, self.totalProfitCol, itTotProfitVal)
             itTotalVal = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight)
             self.setItem(self.totalsRow, self.totalValueCol, itTotalVal)
+            itTotalComment = self.makeTableItem("", self.brushTotals, QtCore.Qt.AlignRight)
+            self.setItem(self.totalsRow, self.totalCommentCol, itTotalComment)
 
     def makeTableItem(self, txt, foreGnd, align):
         it1 = QtWidgets.QTableWidgetItem(txt)
@@ -172,7 +177,7 @@ class StockTable(QtWidgets.QTableWidget):
         # Flash any changed data
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
 
-    def updateTable(self, stockValues, exDivDates, tableTotals):
+    def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals):
         # Update stock table values
         totalVal = self.ToDecimal("0.00")
         totalProfit = self.ToDecimal("0.00")
@@ -181,94 +186,110 @@ class StockTable(QtWidgets.QTableWidget):
         # Iterate rows
         for rowIdx in range(len(self.uiRowDefs)):
             uiRowDef = self.uiRowDefs[rowIdx]
-            stkValues = stockValues.getStockData(uiRowDef["sym"])
-            if stkValues != None:
-                exDivDates.addToStockInfo(uiRowDef["sym"], stkValues)
+            symbolName = uiRowDef['sym']
+            stkValues = stockValues.getStockData(symbolName)
+            if stkValues is not None:
+                exDivDates.addToStockInfo(symbolName, stkValues)
                 if not "price" in stkValues:
                     continue
+                # Get information on stock
                 stkHolding = self.ToDecimal(uiRowDef["hld"])
                 stkPricePence = self.ToDecimal(stkValues["price"])
                 stkCurValue = (stkPricePence * stkHolding) / self.ToDecimal("100")
                 stkCostPerSharePence = self.ToDecimal(uiRowDef['cost'])
                 stkOrigCost = (stkCostPerSharePence * stkHolding) / self.ToDecimal("100")
+                stkCurProfit = stkCurValue - stkOrigCost
+                # Make calculations
+                totalProfit += stkCurProfit
+                totalVal += stkCurValue
+                rowsWithTotalValue += 1
+                # Check if anything has changed with this stock
+                if changedStockDict is None or symbolName in changedStockDict:
+                    # Iterate columns to fill table
+                    for colIdx in range(len(self.uiColDefs)):
+                        colDef = self.uiColDefs[colIdx]
+                        colValName = colDef['colValName']
+                        uiCell = self.item(rowIdx, colIdx)
+                        cellNewText = ""
+                        cellValue = self.ToDecimal(0)
+                        if colDef['dataType'] == 'decimal':
+                            cellValue = self.ToDecimal("0")
+                            if colValName == 'hld':
+                                cellValue = stkHolding
+                            elif colValName == 'cost':
+                                cellValue = stkCostPerSharePence
+                            elif colValName == 'profit':
+                                cellValue = stkCurProfit
+                            elif colValName == 'totalvalue':
+                                cellValue = stkCurValue
+                                debugTotals.append((rowIdx, cellValue, totalVal))  # debug
+                            else:
+                                if colValName in stkValues:
+                                    cellValue = self.ToDecimal(stkValues[colValName])
+                            # Format the value
+                            cellNewText += colDef['fmtStr'].format(cellValue) if ('fmtStr' in colDef and colDef['fmtStr'] != "") else "{0:.0f}".format(cellValue)
+                        else: # must be string
+                            if colValName == 'sym':
+                                cellNewText = symbolName
+                            else:
+                                cellNewText = stkValues[colDef['colValName']] if (colDef['colValName'] in stkValues) else ""
+                        txtPrefix = colDef['prfxStr'] if 'prfxStr' in colDef else ""
+                        txtSuffix = colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
+                        cellNewText = txtPrefix + cellNewText + txtSuffix
+                        # Check for changes
+                        valChanged = (uiCell.text() != cellNewText)
+                        # Handle colour coding
+                        if 'colourCode' in colDef:
+                            if colDef['colourCode'] == 'PosNeg' or colDef['colourCode'] == 'PosBad' or ((colDef['colourCode'] == 'FlashPosNeg') and valChanged):
+                                colourByVal = cellValue
+                                if 'colourBy' in colDef:
+                                    if colDef['colourBy'] == 'change':
+                                        curCellVal = 0
+                                        try:
+                                            curCellVal = self.ToDecimal(float(uiCell.text()))
+                                        except:
+                                            curCellVal = 0
+                                        colourByVal = colourByVal - curCellVal
+                                elif 'colourByCol' in colDef:
+                                    colToColourBy = colDef['colourByCol']
+                                    if colToColourBy in stkValues:
+                                        colourByVal = stkValues[colToColourBy]
+                                valToColourBy = 0
+                                try:
+                                    valToColourBy = float(colourByVal)
+                                except:
+                                    valToColourBy = 0
+                                if valToColourBy > 0:
+                                    if colDef['colourCode'] == 'PosBad':
+                                        uiCell.setBackground(self.brushRed)
+                                    else:
+                                        uiCell.setBackground(self.brushGreen)
+                                elif valToColourBy < 0:
+                                    uiCell.setBackground(self.brushRed)
+                                else:
+                                    uiCell.setBackground(self.brushNeutral)
+                            if (colDef['colourCode'] == 'FlashPosNeg') and valChanged:
+                                self.dataFlashTimerStarted = True
+                                self.dataFlashTimer.start()
+                        # Handle display validity
+                        bShowValue = True
+                        if 'onlyIfValid' in colDef:
+                            bShowValue = False
+                            if colDef['onlyIfValid'] in stkValues:
+                                if stkValues[colDef['onlyIfValid']] != "":
+                                    bShowValue = True
+                        if bShowValue:
+                            uiCell.setText(cellNewText)
+            else: # stkValues is None
                 symbolName = uiRowDef['sym']
-                # Iterate columns to fill table
                 for colIdx in range(len(self.uiColDefs)):
                     colDef = self.uiColDefs[colIdx]
                     colValName = colDef['colValName']
-                    uiCell = self.item(rowIdx, colIdx)
-                    cellNewText = ""
-                    cellValue = self.ToDecimal(0)
-                    if colDef['dataType'] == 'decimal':
-                        cellValue = self.ToDecimal("0")
-                        if colValName == 'hld':
-                            cellValue = stkHolding
-                        elif colValName == 'cost':
-                            cellValue = stkCostPerSharePence
-                        elif colValName == 'profit':
-                            cellValue = stkCurValue - stkOrigCost
-                            totalProfit += cellValue
-                        elif colValName == 'totalvalue':
-                            cellValue = stkCurValue
-                            totalVal += cellValue
-                            rowsWithTotalValue += 1
-                            debugTotals.append((rowIdx, cellValue, totalVal))  # debug
-                        else:
-                            if colValName in stkValues:
-                                cellValue = self.ToDecimal(stkValues[colValName])
-                        # Format the value
-                        cellNewText += colDef['fmtStr'].format(cellValue) if ('fmtStr' in colDef and colDef['fmtStr'] != "") else "{0:.0f}".format(cellValue)
-                    else: # must be string
-                        if colValName == 'sym':
-                            cellNewText = symbolName
-                        else:
-                            cellNewText = stkValues[colDef['colValName']] if (colDef['colValName'] in stkValues) else ""
-                    txtPrefix = colDef['prfxStr'] if 'prfxStr' in colDef else ""
-                    txtSuffix = colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
-                    cellNewText = txtPrefix + cellNewText + txtSuffix
-                    # Check for changes
-                    valChanged = (uiCell.text() != cellNewText)
-                    # Handle colour coding
-                    if 'colourCode' in colDef:
-                        if colDef['colourCode'] == 'PosNeg' or colDef['colourCode'] == 'PosBad' or ((colDef['colourCode'] == 'FlashPosNeg') and valChanged):
-                            colourByVal = cellValue
-                            if 'colourBy' in colDef:
-                                if colDef['colourBy'] == 'change':
-                                    curCellVal = 0
-                                    try:
-                                        curCellVal = self.ToDecimal(float(uiCell.text()))
-                                    except:
-                                        curCellVal = 0
-                                    colourByVal = colourByVal - curCellVal
-                            elif 'colourByCol' in colDef:
-                                colToColourBy = colDef['colourByCol']
-                                colourByVal = stkValues[colToColourBy]
-                            valToColourBy = 0
-                            try:
-                                valToColourBy = float(colourByVal)
-                            except:
-                                valToColourBy = 0
-                            if valToColourBy > 0:
-                                if colDef['colourCode'] == 'PosBad':
-                                    uiCell.setBackground(self.brushRed)
-                                else:
-                                    uiCell.setBackground(self.brushGreen)
-                            elif valToColourBy < 0:
-                                uiCell.setBackground(self.brushRed)
-                            else:
-                                uiCell.setBackground(self.brushNeutral)
-                        if (colDef['colourCode'] == 'FlashPosNeg') and valChanged:
-                            self.dataFlashTimerStarted = True
-                            self.dataFlashTimer.start()
-                    # Handle display validity
-                    bShowValue = True
-                    if 'onlyIfValid' in colDef:
-                        bShowValue = False
-                        if colDef['onlyIfValid'] in stkValues:
-                            if stkValues[colDef['onlyIfValid']] != "":
-                                bShowValue = True
-                    if bShowValue:
-                        uiCell.setText(cellNewText)
+                    if colValName == "sym":
+                        uiCell = self.item(rowIdx, colIdx)
+                        uiCell.setText(symbolName)
+                        break
+
         # Resize the table to fit the contents
         self.resizeColumnsToContents()
 #        self.CrossCheckValues()
@@ -281,9 +302,17 @@ class StockTable(QtWidgets.QTableWidget):
 
     def SetTotals(self, tableTotals):
         # Handle totals if required
-        if self.bTotalsRow and (tableTotals[2] == tableTotals[3]):
+        if self.bTotalsRow:
             self.item(self.totalsRow, self.totalProfitCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[1]))
             self.item(self.totalsRow, self.totalValueCol).setText(self.currencySign + '{:2,.2f}'.format(tableTotals[0]))
+            if tableTotals[2] == tableTotals[3]:
+                uiCell = self.item(self.totalsRow, self.totalCommentCol)
+                uiCell.setText("")
+                uiCell.setBackground(self.brushNeutral)
+            else:
+                uiCell = self.item(self.totalsRow, self.totalCommentCol)
+                uiCell.setText("Missing Values")
+                uiCell.setBackground(self.brushRed)
 
     def ToDecimal(self, value):
         try:
