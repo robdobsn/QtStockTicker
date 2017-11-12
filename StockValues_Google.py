@@ -5,6 +5,8 @@ import time
 import copy
 from urllib.request import Request, urlopen
 import json
+from bs4 import BeautifulSoup
+import requests
 
 '''
 Created on 11 Nov 2017
@@ -14,11 +16,13 @@ Created on 11 Nov 2017
 
 class StockValues_Google:
     bOnlyUpdateWhileMarketOpen = True
+    bUpdateFullListWhenMarketClosed = True
     pendingTickerlist = None
+    fullTickerList = []
 
     def __init__(self, symbolChangedCallback):
         self._symbolChangedCallback = symbolChangedCallback
-        self.tickerlist = []
+        self.highFreqSymList = []
         self.running = False
         self.openhour = 8
         self.openmin = 0
@@ -36,7 +40,7 @@ class StockValues_Google:
         print("Adding symbol", symbol, "to be got from Google")
         self.listUpdateLock.acquire()
         curList = []
-        for sym in self.tickerlist:
+        for sym in self.highFreqSymList:
             curList.append(sym)
         if self.pendingTickerlist is not None:
             for sym in self.pendingTickerlist:
@@ -47,12 +51,12 @@ class StockValues_Google:
         self.pendingTickerlist = curList
         self.listUpdateLock.release()
 
-    def setStocks(self, stockList):
+    def setAllStocks(self, stockList):
         curList = []
         for sym in stockList:
             curList.append(sym)
         self.listUpdateLock.acquire()
-        self.pendingTickerlist = curList
+        self.fullTickerList = curList
         self.listUpdateLock.release()
 
     def checkAndSetUIUpdateDataChange(self):
@@ -93,7 +97,7 @@ class StockValues_Google:
             updateNeeded = False
             self.listUpdateLock.acquire()
             if self.pendingTickerlist is not None:
-                self.tickerlist = self.pendingTickerlist
+                self.highFreqSymList = self.pendingTickerlist
                 self.pendingTickerlist = None
                 self.dataUpdatedSinceLastUIUpdate = True
                 # print("data up = true")
@@ -113,16 +117,20 @@ class StockValues_Google:
             if not self.bOnlyUpdateWhileMarketOpen or marketOpen:
                 forceUpdate = True
             self.status = "Market Open" if marketOpen else "Market Closed"
-            updateNeeded = updateNeeded or forceUpdate
+            updateNeeded = updateNeeded or forceUpdate or self.bUpdateFullListWhenMarketClosed
             if not updateNeeded:
                 continue
+            updateUsingFullList = self.bUpdateFullListWhenMarketClosed and not marketOpen and len(self.fullTickerList) > 0
 
             # Check list isn't empty
-            if len(self.tickerlist) <= 0:
+            if len(self.highFreqSymList) <= 0 and (not updateUsingFullList):
                 continue
 
             # Update the list
-            stocks = self.tickerlist[nextStockIdx:nextStockIdx+maxStocksPerPass]
+            if updateUsingFullList:
+                stocks = self.fullTickerList[nextStockIdx:nextStockIdx + maxStocksPerPass]
+            else:
+                stocks = self.highFreqSymList[nextStockIdx:nextStockIdx + maxStocksPerPass]
             if len(stocks) <= 0:
                 continue
 
@@ -158,7 +166,7 @@ class StockValues_Google:
                 finally:
                     self.lock.release()
 
-            if nextStockIdx + maxStocksPerPass >= len(self.tickerlist):
+            if nextStockIdx + maxStocksPerPass >= (len(self.fullTickerList) if updateUsingFullList else len(self.highFreqSymList)):
                 nextStockIdx = 0
                 firstpass = False
             else:
@@ -166,7 +174,7 @@ class StockValues_Google:
 
             # print("data updated", self.dataUpdatedSinceLastGot)
 
-            delayTime = 10 if firstpass else (120 if marketOpen else 1800)
+            delayTime = 10 if firstpass else 120
             for delayCount in range(delayTime):
                 if not self.running:
                     break
@@ -177,21 +185,39 @@ class StockValues_Google:
         Get all available quote data for the given ticker symbols.
         Returns a dictionary.
         """
+        tryAlternateList = []
         quotes = {}
         for symbol in symbols:
-            stockInfo = self._request(symbol)
-            stkData = json.loads(stockInfo)
-            if len(stkData) > 0:
-                stkFirst = stkData[0]
-                quotes[symbol] = dict( name=stkFirst["name"] )
-                if "l" in stkFirst:
-                    quotes[symbol]["price"] = stkFirst["l"]
-                if "c" in stkFirst:
-                    quotes[symbol]["change"] = stkFirst["c"]
-                if "vo" in stkFirst:
-                    quotes[symbol]["volume"] = stkFirst["vo"]
-                if "cp" in stkFirst:
-                    quotes[symbol]["chg_percent"] = stkFirst["cp"]
+            try:
+                stockInfoJson = self.requestFromGoogle(symbol)
+                stkData = json.loads(stockInfoJson)
+                if len(stkData) > 0:
+                    stkFirst = stkData[0]
+                    quotes[symbol] = dict( name=stkFirst["name"] )
+                    if "l" in stkFirst:
+                        quotes[symbol]["price"] = stkFirst["l"]
+                    if "c" in stkFirst:
+                        quotes[symbol]["change"] = stkFirst["c"]
+                    if "vo" in stkFirst:
+                        quotes[symbol]["volume"] = stkFirst["vo"]
+                    if "cp" in stkFirst:
+                        quotes[symbol]["chg_percent"] = stkFirst["cp"]
+            except:
+                print("StockValues_Google: failed to get quote for", symbol)
+                tryAlternateList.append(symbol)
+        # Now try an alternate source
+        for symbol in tryAlternateList:
+            try:
+                dotPos = symbol.find(".")
+                if dotPos >= 0:
+                    sym = symbol[:dotPos]
+                    exchange = symbol[dotPos+1:]
+                    if exchange == "L":
+                        exchange = "LSE"
+                    stockInfo = self.requestFromAlternate(sym, exchange)
+                    quotes[symbol] = stockInfo
+            except:
+                print("Couldn't get quote for", symbol)
         return quotes
 
     # def stripQuotes(self, inStr):
@@ -199,9 +225,9 @@ class StockValues_Google:
     #         inStr = inStr[1:-1]
     #     return inStr
     
-    def _request(self, symbol):
+    def requestFromGoogle(self, symbol):
         url = 'https://finance.google.com/finance?output=json&q=' + symbol
-        print ("Requesting " + url)
+        print ("StockValues_Google: Requesting " + url)
         req = Request(url)
         resp = urlopen(req)
         readVal = resp.read()
@@ -214,3 +240,21 @@ class StockValues_Google:
             jsonStr = "[" + jsonStr + "]"
         # print("Response", jsonStr)
         return jsonStr
+
+    def requestFromAlternate(self, symbol, exchange):
+
+        url = 'http://eoddata.com/stockquote/' + exchange + "/" + symbol + ".htm"
+        print ("StockValues_Google: Requesting " + url)
+        req = requests.get(url)
+        # Get page and parse
+        soup = BeautifulSoup(req.text, "html5lib")
+        perfTable = soup.select("#ctl00_cph1_qp1_div1 div.cb table tr td b")
+        # Extract stocks table info
+        stockInfo = {}
+        attrNames = ["price", "change", "open", "high", "ask", "volume", "chg_percent", "prev", "low", "bid",
+                     "open_int"]
+        for elIdx in range(len(perfTable)):
+            if elIdx >= len(attrNames):
+                break
+            stockInfo[attrNames[elIdx]] = perfTable[elIdx].getText().strip()
+        return stockInfo

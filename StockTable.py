@@ -250,6 +250,8 @@ class StockTable(QtWidgets.QTableWidget):
                                         except:
                                             curCellVal = 0
                                         colourByVal = colourByVal - curCellVal
+                                    elif colDef['colourBy'] == 'exDivFromHoldings':
+                                        colourByVal = -1
                                 elif 'colourByCol' in colDef:
                                     colToColourBy = colDef['colourByCol']
                                     if colToColourBy in stkValues:
@@ -260,12 +262,15 @@ class StockTable(QtWidgets.QTableWidget):
                                 except:
                                     valToColourBy = 0
                                 if valToColourBy > 0:
-                                    if colDef['colourCode'] == 'PosBad':
+                                    if 'colourCode' in colDef and colDef['colourCode'] == 'PosBad':
                                         uiCell.setBackground(self.brushRed)
                                     else:
                                         uiCell.setBackground(self.brushGreen)
                                 elif valToColourBy < 0:
-                                    uiCell.setBackground(self.brushRed)
+                                    if 'colourCode' in colDef and colDef['colourCode'] == 'PosBad':
+                                        uiCell.setBackground(self.brushGreen)
+                                    else:
+                                        uiCell.setBackground(self.brushRed)
                                 else:
                                     uiCell.setBackground(self.brushNeutral)
                             if (colDef['colourCode'] == 'FlashPosNeg') and valChanged:
@@ -316,7 +321,14 @@ class StockTable(QtWidgets.QTableWidget):
 
     def ToDecimal(self, value):
         try:
-            outVal = Decimal(value)
+            if type(value) is str:
+                mult = 1
+                if "M" in value:
+                    value = value.replace("M","")
+                    mult = 1000000
+                outVal = Decimal(value.replace(",", "")) * mult
+            else:
+                outVal = Decimal(value)
             return outVal
         except:
             return Decimal("0")

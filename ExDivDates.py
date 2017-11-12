@@ -1,26 +1,37 @@
 from selenium import webdriver
 import time
+import arrow
+from datetime import datetime
 from bs4 import BeautifulSoup
 import threading
-import json
-from datetime import datetime
 
 '''
 Created on 13 Sep 2013
+Updated 12 Nov 2017
 
 @author: rob dobson
 '''
 
 class ExDivDates():
-    hourToRunAt = 4;
-    bRunAlready = False;
-    bFirstRunDone = False;
+    hourToRunAt = 4
+    bRunAlready = False
+    bFirstRunDone = False
 
-    def __init__(self):
+    conversionRatesSymbols = {
+        "C$": {"iso":"CAD","def":1.6},
+        "$":  {"iso":"USD","def":1.3},
+        "€":  {"iso":"EUR","def":1.1},
+        "R":  {"iso":"ZAR","def":18.9},
+        "p":  {"iso":"","def":100},
+        "£":  {"iso":"GBP","def":1.0}
+    }
+
+    def __init__(self, exchangeRates):
+        self._exchangeRates = exchangeRates
         self.running = False
         self.stocksExDivInfo = {}
         self.lock = threading.Lock()
-        self.runHeadless = False 
+        self.runHeadless = True
         
     def run(self):
         self.running = True
@@ -54,18 +65,98 @@ class ExDivDates():
             exDivOnly[sym] = { 'symbol':sym, 'exDivDate':stock['exDivDate'], 'exDivAmount':stock['exDivAmount'], 'paymentDate':stock['paymentDate'] }
         for stock in exDivOnly.values():
             if "symbol" in stock:
-                newDict = {}
+                newDict = { 'exDivDataFromHoldings': True }
                 for item in itemsToAdd:
                     if item in stock:
                         newDict[item] = stock[item]
                 self.stocksExDivInfo[stock["symbol"]] = newDict
 
+    def convertFromPence(self, val):
+        newVal = None
+        try:
+            for sym, exRateInfo in self.conversionRatesSymbols.items():
+                if sym in val:
+                    val = val.replace(sym, "")
+                    newVal = float(val)
+                    exchgRate = self._exchangeRates.getExVsGBPByIso(exRateInfo["iso"])
+                    if exchgRate is not None:
+                        newVal /= exchgRate
+                    else:
+                        newVal /= exRateInfo["def"]
+                    break
+            if newVal is None:
+                newVal = float(val)
+        except:
+            newVal = None
+        return newVal
+
+    def convertFromShortDate(self, val):
+        newVal = ""
+        try:
+            newVal = arrow.get(val, "DD-MMM")
+            newVal = newVal.replace(year=arrow.now().year)
+            if newVal < arrow.now():
+                newVal = newVal.shift(years=+1)
+            newVal = newVal.format("YYYY-MM-DD")
+        except:
+            newVal = ""
+        return newVal
+
+    def extractDataFromPage(self, pageText):
+
+        # parse and extract ex dividend table
+        soup = BeautifulSoup(pageText, "html5lib")
+        exDivTable = soup.select("body section table tbody tr")
+        # print(exDivTable)
+
+        # Extract rows and columns from table
+        exDivInfo = {}
+        attrNames = ["exDivEPIC", "exDivName", "exDivMarket", "exDivSharePrice", "exDivAmount", "exDivImpact",
+                     "exDivDeclared", "exDivDate", "paymentDate"]
+        exDivTableLine = 0
+        for exDivRow in exDivTable:
+            exDivValid = True
+            exDivItems = {"exDivTableLine": exDivTableLine}
+            exDivTableLine += 1
+            exDivCells = exDivRow.select("td")
+            for elIdx in range(len(exDivCells)):
+                if elIdx >= len(attrNames):
+                    break
+                attrName = attrNames[elIdx]
+                val = exDivCells[elIdx].getText().strip()
+                # Convert currency fields
+                if attrName == "exDivSharePrice" or attrName == "exDivAmount":
+                    val = self.convertFromPence(val)
+                if val is None and attrName == "exDivAmount":
+                    exDivValid = False
+                    break
+                # Convert time fields
+                if attrName == "paymentDate" or attrName == "exDivDate" or attrName == "exDivDeclared":
+                    val = self.convertFromShortDate(val)
+                if val == "" and (attrName == "exDivDate" or attrName == "paymentDate"):
+                    exDivValid = False
+                    break
+                exDivItems[attrName] = val
+            if exDivValid and "exDivEPIC" in exDivItems:
+                if not exDivItems["exDivEPIC"] in exDivInfo:
+                    exDivInfo[exDivItems["exDivEPIC"]] = exDivItems
+                else:
+                    print("Got 2 or more dividend lines, returning only earliest for", exDivItems["exDivEPIC"])
+            else:
+                print("Skipping", exDivItems)
+
+        # for sym, vals in exDivInfo.items():
+        #     print(vals)
+
+        print("ExDivDates: Processed", len(exDivTable), "rows, got", len(exDivInfo), "symbols")
+        return exDivInfo
+
     def do_thread_scrape(self):
         while(self.running):
             
             # Check if it is time to run
-            bRunNow = False;
-            hourNow = datetime.now().hour;
+            bRunNow = False
+            hourNow = datetime.now().hour
             if self.bFirstRunDone:
                 testHour = hourNow
                 if testHour < self.hourToRunAt:
@@ -79,85 +170,38 @@ class ExDivDates():
                 bRunNow = True
                     
             if bRunNow:
-                print("Running ExDivData at", hourNow)
+                pageURL = "http://www.dividenddata.co.uk"
+                print("ExDivDates:", datetime.now().strftime("%Y-%m-%d %H:%M"), ", URL", pageURL)
                 self.bFirstRunDone = True
                 self.bRunAlready = True
                 
-                exDivInfoList = []
-                
-                urlbase = "http://www.exdividenddate.co.uk"
-                pageURL = urlbase
                 if self.runHeadless:
-                    dc = webdriver.DesiredCapabilities.HTMLUNIT
-                    browser = webdriver.Remote(desired_capabilities=dc)
+                    browser = webdriver.PhantomJS()
                 else:
                     browser = webdriver.Firefox() # Get local session of firefox
     
                 browser.get(pageURL) # Load page
-                
-                maxPagerNumber = 0
-                curPagerNumber = 1
-                while (True):
-                    
-                    colNames = ['symbol','name','index','exDivDate','exDivAmount','paymentDate']
-                    
-                    # Get page and parse
-                    html = browser.page_source
-                    soup = BeautifulSoup(html, "lxml")
-                    rows = soup.findAll('tr', {'class' : 'exdividenditem' }) + soup.findAll('tr', {'class':'exdividendalternatingitem'})
-                    
-                    # Extract stocks table info
-                    for row in rows:
-                        colIdx = 0
-                        stockExDivInfo = {}
-                        for cell in row.findAll(text=True):
-                            cell = cell.strip()
-                            if cell == "":
-                                continue
-                            if colIdx < len(colNames):
-                                if colNames[colIdx] == "symbol":
-                                    cell = cell + ".L" if (cell[-1] != ".") else cell + "L"
-                                stockExDivInfo[colNames[colIdx]] = cell
-                            colIdx += 1
-#                    print(stockExDivInfo)
-                        exDivInfoList.append(stockExDivInfo)
-                        
-                    # Find maximum pager number
-                    pagerRow = soup.find('tr', {'id' : 'ctl00_ContentPlaceHolder1_lvExDividendDate_Tr1' })
-                    for txt in pagerRow.findAll(text=True):
-                        txt = txt.strip()
-                        if txt == "":
-                            continue
-                        if maxPagerNumber < int(txt):
-                            maxPagerNumber = int(txt)
-                    
-                    # Find the pager and go to next page if applicable
-                    curPagerNumber += 1
-                    if curPagerNumber > maxPagerNumber:
-                        break
-                    browser.find_element_by_xpath("//a[contains(.,'" + str(curPagerNumber) + "')]").click();
-                    time.sleep(3)
-    
-                # Close the browser now we're done    
+
+                exDivInfoDict = self.extractDataFromPage(browser.page_source)
+
+                # Close the browser now we're done
                 browser.close()
-                
+
                 # Put found stocks into the dictionary of current data
-                for stk in exDivInfoList:
+                for sym, vals in exDivInfoDict.items():
+                    ySymbol = sym
+                    if "exDivMarket" in vals:
+                        market = vals["exDivMarket"]
+                        if market.startswith("FTSE"):
+                            ySymbol = sym + "L" if sym.endswith(".") else sym + ".L"
                     self.lock.acquire()
-                    self.stocksExDivInfo[stk['symbol']] = stk
+                    self.stocksExDivInfo[ySymbol] = vals
                     self.lock.release()
-                
-                # Append to exdivinfo file
-                with open("exdivinfo.json", "at") as exDivFile:
-                    jsonStr = json.dumps(exDivInfoList, indent=4) + ","
-                    exDivFile.write(jsonStr)
-    
-                print("Found", len(exDivInfoList), "ExDivInfoLines")
-#                sortit = sorted(exDivInfoList, key=lambda k: k['name'])
-#                for stk in sortit:
-#                    print(stk)
-                               
-            time.sleep(60)
+
+            for i in range(60):
+                if not self.running:
+                    break
+                time.sleep(1)
 
 if __name__ == '__main__':
     ## Test code

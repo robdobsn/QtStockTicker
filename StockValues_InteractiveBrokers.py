@@ -41,9 +41,9 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
     _mapSymbolToPriceReqId = {}
     _mapDetailsReqIdToPriceReqId = {}
     _IB_SymbolMappings = {
-        "^GSPC": { "symbol": "SPX", "exchange": "CBOE", "currency":"USD", "secType":"IND" },
-        "^NYA": {"symbol": "INDU", "exchange": "NYSE", "currency": "USD", "secType": "IND"},
-        "^FTSE": {"symbol": "TICK-LSE", "exchange": "LSE", "currency": "GBP", "secType": "IND"},
+        "INDEXSP:.INX": { "symbol": "SPX", "exchange": "CBOE", "currency":"USD", "secType":"IND" },
+        "INDEXDJX:.DJI": {"symbol": "INDU", "exchange": "NYSE", "currency": "USD", "secType": "IND"},
+        # "INDEXFTSE:UKX": {"symbol": "TICK-LSE", "exchange": "LSE", "currency": "GBP", "secType": "IND"},
         "AV-B.L": {"symbol": "AV.B", "exchange": "LSE", "currency": "GBP", "secType": "STK"},
     }
 
@@ -95,6 +95,9 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
         self.requestThreadRunning = False
 
     def setStocks(self, stockList):
+        # Send full list to google getter (for slow rate updates - e.g. when market closed)
+        self._stockValuesFromGoogle.setAllStocks(stockList)
+        # Record list to be got
         with self.requestListLock:
             self.requestAddStockList = []
             with self.mapsLock:
@@ -287,11 +290,15 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
     def getStockInfoData(self, ySymbol):
         if ySymbol not in self._mapSymbolToPriceReqId:
             return self._stockValuesFromGoogle.getStockInfoData(ySymbol)
+        stockInfo = self._stockValuesFromGoogle.getStockInfoData(ySymbol)
+        if stockInfo is None:
+            stockInfo = {}
         reqId = self._mapSymbolToPriceReqId[ySymbol]
-        self.mapsLock.acquire()
-        dat = copy.copy(self._mapPriceReqIdToStockInfo[reqId])
-        self.mapsLock.release()
-        return dat
+        with self.mapsLock:
+            for k,v in self._mapPriceReqIdToStockInfo[reqId].items():
+                if k != "price" or v != 0:
+                    stockInfo[k] = v
+        return stockInfo
 
     def symbolChangedCallback(self, symbol):
         self._symbolChangedCallback(symbol)

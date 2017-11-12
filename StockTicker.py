@@ -14,6 +14,7 @@ from HostedConfigFile import HostedConfigFile
 from ExDivDates import ExDivDates
 from StockTable import StockTable
 from decimal import Decimal
+from ExchangeRates import ExchangeRates
 
 import requests
 SEND_TO_MESSAGE_BOARD = False
@@ -44,11 +45,17 @@ class RStockTicker(QtWidgets.QMainWindow):
         configData = self.hostedConfigFile.getConfigDataFromLocation()
         self.stockHoldings.setupFromConfigData(configData)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
+        # Exchange rate getter
+        self.exchangeRates = ExchangeRates()
+        self.exchangeRates.start()
+        # Stock values getter
         self.stockValues = StockValues_InteractiveBrokers()
         self.stockValues.setStocks(heldStockSymbols)
         self.stockValues.run()
-        self.exDivDates = ExDivDates()
-#        self.exDivDates.run()
+        # Ex-dividend dates getter
+        self.exDivDates = ExDivDates(self.exchangeRates)
+        self.exDivDates.run()
+        # Update for the display
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
         self.updateTimer.start(2000)
@@ -65,8 +72,8 @@ class RStockTicker(QtWidgets.QMainWindow):
             { 'colLbl':"Value", 'colValName':"totalvalue", 'dataType':'decimal', 'fmtStr':'{:0,.2f}', 'prfxStr':'£', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             { 'colLbl':"Profit", 'colValName':"profit", 'dataType':'decimal', 'fmtStr':'{:0,.2f}', 'prfxStr':'£', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourCode':'PosNeg' },
             { 'colLbl':"Volume", 'colValName':"volume", 'dataType':'decimal', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
+            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourBy':'exDivFromHoldings' },
+            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.4f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
             { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.watchTableColDefs = [
@@ -76,8 +83,8 @@ class RStockTicker(QtWidgets.QMainWindow):
             { 'colLbl':"Change", 'colValName':"change", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             { 'colLbl':"Change%", 'colValName':"chg_percent", 'dataType':'str', 'fmtStr':'{:0.2f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             { 'colLbl':"Volume", 'colValName':"volume", 'dataType':'decimal', 'fmtStr':'{:0,.0f}', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
-            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.2f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
+            { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourBy':'exDivFromHoldings' },
+            { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.4f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
             { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.initUI()
@@ -185,6 +192,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stockValues.stop()
         self.exDivDates.stop()
         self.updateTimer.stop()
+        self.exchangeRates.stop()
         event.accept()
         
     def updateStockValues(self):
