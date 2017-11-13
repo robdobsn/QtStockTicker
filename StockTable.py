@@ -34,17 +34,17 @@ class StockTable(QtWidgets.QTableWidget):
     totalValueCol = 0
     totalCommentCol = 0
     dataFlashTimerStarted = False
-    dataFlashTimer = QTime();
-    dataFlashTimeMs = 400;
+    dataFlashTimer = QTime()
+    dataFlashTimeMs = 400
     currencySign = ""
+    fontsInUse = {}
 
-    def initTable(self, parent, colDefs, currencySign, bTotalsRow, fontName, idealFontSizes, idealFontBoldness):
+    def initTable(self, parent, colDefs, currencySign, bTotalsRow, tableId, localConfigFile):
         self.uiColDefs = colDefs
         self.currencySign = currencySign
         self.bTotalsRow = bTotalsRow
-        self.fontName = fontName
-        self.idealFontSizes = idealFontSizes
-        self.idealFontBoldness = idealFontBoldness
+        self.tableId = tableId
+        self.localConfigFile = localConfigFile
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
 
         # Table for stocks
@@ -65,8 +65,27 @@ class StockTable(QtWidgets.QTableWidget):
         palette.setBrush(QtGui.QPalette.Base, self.brushBackground)
         self.setPalette(palette)
 
-    def resizeEvent(self, newSize):
-        # print("Resizing")
+    def getDefaultFont(self, height, tableFontId):
+        fontSize = 6
+        weight = 50
+        if height > 15:
+            fontSize = 7
+        if height > 22:
+            fontSize = 8
+        if height > 30:
+            fontSize = 9
+        if height > 40:
+            fontSize = 10
+        # print("height", height, "fontsize", fontSize)
+        if tableFontId == 'large':
+            fontSize += 1
+        elif tableFontId == "totals":
+            fontSize += 1
+            weight = 75
+        tmpFont = QtGui.QFont("Arial", fontSize, weight, False)
+        return tmpFont.toString()
+
+    def updateTableFonts(self):
         # Get full viewport size
         table_size = self.viewport().size()
         gw = 0  # Grid line width
@@ -79,26 +98,31 @@ class StockTable(QtWidgets.QTableWidget):
         # print("Table height", height)
         for row in range(self.rowCount()):
             self.setRowHeight(row, height)
-            fontSize = 6
-            if height > 15:
-                fontSize = 7
-            if height > 22:
-                fontSize = 8
-            if height > 30:
-                fontSize = 9
-            if height > 40:
-                fontSize = 10
-            # print("height", height, "fontsize", fontSize)
             for col in range(self.columnCount()):
-                colFontSize = fontSize
                 if 'fontSize' in self.uiColDefs[col] and self.uiColDefs[col]['fontSize'] == 'large':
-                    if colFontSize == 9:
-                        colFontSize = 10
-                fontToUse = QtGui.QFont('SansSerif', fontSize)
-                if row == self.totalsRow:
-                    fontToUse = QtGui.QFont('SansSerif', fontSize+1)
-                    fontToUse.setBold(True)
+                    tableFontId = "large"
+                elif row == self.totalsRow:
+                    tableFontId = "totals"
+                else:
+                    tableFontId = "normal"
+                fontStr = self.localConfigFile.getItem("table_"+self.tableId+"_"+tableFontId, self.getDefaultFont(height, tableFontId))
+                fontToUse = QtGui.QFont()
+                fontToUse.fromString(fontStr)
                 self.item(row, col).setFont(fontToUse)
+                self.fontsInUse[tableFontId] = fontStr
+
+    def resizeEvent(self, newSize):
+        # print("Resizing")
+        self.updateTableFonts()
+
+    def getFontStr(self, tableFontId):
+        if tableFontId in self.fontsInUse:
+            return self.fontsInUse[tableFontId]
+        return ""
+
+    def setFontStr(self, tableFontId, newFontStr):
+        self.localConfigFile.setItem("table_"+self.tableId+"_"+tableFontId, newFontStr)
+        self.updateTableFonts()
 
     def populateTable(self, stockHolding):
         

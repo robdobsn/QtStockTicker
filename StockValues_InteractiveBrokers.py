@@ -72,19 +72,18 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
         self._stockValuesFromGoogle = StockValues_Google(self.symbolChangedCallback)
 
     def error(self, reqId:int, errorCode:int, errorString:str):
-        if errorCode == 200: # security not found
-            self.mapsLock.acquire()
-            if reqId in self._mapPriceReqIdToStockInfo:
-                sym = self._mapPriceReqIdToStockInfo[reqId]["ySymbol"]
-                print("StockValues: Symbol not matched", sym, "errorMsg", errorString)
-                self._mapPriceReqIdToStockInfo.pop(reqId)
-                if sym in self._mapSymbolToPriceReqId:
-                    self._mapSymbolToPriceReqId.pop(sym)
-                # Add to list of symbols to get from google
-                self._stockValuesFromGoogle.addStock(sym)
-            else:
-                print("StockValues: Unknown symbol not found")
-            self.mapsLock.release()
+        if errorCode == 200 or errorCode == 504: # security not found OR not connected
+            with self.mapsLock:
+                if reqId in self._mapPriceReqIdToStockInfo:
+                    sym = self._mapPriceReqIdToStockInfo[reqId]["ySymbol"]
+                    print("StockValues: Symbol not matched", sym, "errorMsg", errorString)
+                    self._mapPriceReqIdToStockInfo.pop(reqId)
+                    if sym in self._mapSymbolToPriceReqId:
+                        self._mapSymbolToPriceReqId.pop(sym)
+                    # Add to list of symbols to get from google
+                    self._stockValuesFromGoogle.addStock(sym)
+                else:
+                    print("StockValues: Unknown symbol not found")
         else:
             if reqId == -1:
                 print("StockValues: IB INFO msgCode", errorCode, "msgStr", errorString)
@@ -251,8 +250,6 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
             if reqId in self._mapPriceReqIdToStockInfo:
                 stockInfo = self._mapPriceReqIdToStockInfo[reqId]
                 sym = stockInfo["ySymbol"]
-                if sym == "MKLW.L":
-                    print("**************************", sym, tickType, price)
                 if tickType == 1:  # bid_price
                     # Not this does not set symbolDataChanged
                     self.setValInStockDict(sym, "bid_price", price, stockInfo)

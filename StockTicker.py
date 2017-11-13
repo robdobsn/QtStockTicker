@@ -15,6 +15,7 @@ from ExDivDates import ExDivDates
 from StockTable import StockTable
 from decimal import Decimal
 from ExchangeRates import ExchangeRates
+from LocalConfig import LocalConfig
 
 import requests
 SEND_TO_MESSAGE_BOARD = False
@@ -35,9 +36,12 @@ class RStockTicker(QtWidgets.QMainWindow):
     windowTitle = ""
     MARKET_OPEN_CHECK_TICKS = 60
     ticksBeforeMarketOpenCheck = MARKET_OPEN_CHECK_TICKS
-    
+
     def __init__(self):
         super(RStockTicker, self).__init__()
+        # Local config
+        self.localConfigFile = LocalConfig("localConfig.json")
+        # Hosted config
         self.hostedConfigFile = HostedConfigFile()
         self.hostedConfigFile.initFromFile('privatesettings/stockTickerConfig.json')
         self.stockHoldings = StockHoldings()
@@ -89,21 +93,42 @@ class RStockTicker(QtWidgets.QMainWindow):
             ]
         self.initUI()
 
-        
+    def getFontAction(self, title, connectParam1, connectParam2):
+        fontAction = QtWidgets.QAction(QtGui.QIcon('font.png'), '&' + title, self)
+        fontAction.setStatusTip(title)
+        fontAction.triggered.connect(lambda: self.changeFont(connectParam1, connectParam2))
+        return fontAction
+
     def initUI(self):
 
         # Grid layout for the tables
         self.gridLayout = QtWidgets.QGridLayout()
+
+        # Edit action
+        editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)
+        editAction.setStatusTip('Edit shares')
+        editAction.triggered.connect(self.editStocksList)
+
+        # Exit action
+        exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
+        exitAction.setStatusTip('Exit application')
+        exitAction.triggered.connect(self.quitApp)
 
         # Table(s) to handle watch list
         numWatchTables = 3
         self.watchTables = []
         for tabIdx in range(numWatchTables):
             newTab = StockTable()
-            newTab.initTable(self, self.watchTableColDefs, self.currencySign, False, "SansSerif", (9,8,9), ('','','bold'))
+            newTab.initTable(self, self.watchTableColDefs, self.currencySign, False, "watch", self.localConfigFile)
+            # Add actions
+            newTab.addAction(editAction)
+            newTab.addAction(self.getFontAction("Normal Font", "watch", "normal"))
+            newTab.addAction(self.getFontAction("Large Font", "watch", "large"))
+            newTab.addAction(exitAction)
+            newTab.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+            # Add to list of tables
             self.watchTables.append(newTab)
 
-#        self.watchTable = StockTable()
 #        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
 #        self.watchTable.populateTable(watchStocks)
 
@@ -112,7 +137,6 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.portfolioTables = []
         for tabIdx in range(numPortfolioTables):
             newTab = StockTable()
-            newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, 'SansSerif', (10,8,11),('','', 'bold'))
             self.portfolioTables.append(newTab)
 
         # Populate tables
@@ -128,23 +152,10 @@ class RStockTicker(QtWidgets.QMainWindow):
             self.gridLayout.addWidget(self.watchTables[tabIdx], 0, tabIdx*watchTabColSpan, 1, watchTabColSpan)
         for tabIdx in range(len(self.portfolioTables)):
             self.gridLayout.addWidget(self.portfolioTables[tabIdx], 1, tabIdx*portfolioTabColSpan, 1, portfolioTabColSpan)
-        
-        # Edit action
-        editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)        
-        editAction.setStatusTip('Edit shares')
-        editAction.triggered.connect(self.editStocksList)
-
-        # Exit action
-        exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)        
-        exitAction.setStatusTip('Exit application')
-        exitAction.triggered.connect(self.quitApp)
 
         # GridWidget that holds everything        
         gridWidget = QtWidgets.QWidget()
         gridWidget.setLayout(self.gridLayout)
-        gridWidget.addAction(editAction)
-        gridWidget.addAction(exitAction)
-        gridWidget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
 
         self.setCentralWidget(gridWidget)
 #        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
@@ -186,7 +197,6 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stocksViewLock.release()
         configData = self.stockHoldings.getConfigData()
         self.hostedConfigFile.configFileUpdate(configData)
-        
     def closeEvent(self, event):
         print('StockTicker: Stopping')
         self.stockValues.stop()
