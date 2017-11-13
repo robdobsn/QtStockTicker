@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['StockTicker.py'],
-             pathex=['C:\\Users\\rob\\Documents\\GitHub\\QtStockTicker'],
+             pathex=['M:\\RobDev\\Projects\\AutomationIoT\\ControllersAppsWidgets\\RobStockTicker\\QtStockTicker'],
              binaries=[],
              datas=[],
              hiddenimports=[],
@@ -26,4 +26,3 @@ exe = EXE(pyz,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
-          console=True )

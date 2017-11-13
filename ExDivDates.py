@@ -58,6 +58,8 @@ class ExDivDates():
         exDivOnly = {}
         for stock in stockHoldings:
             sym = stock['symbol']
+            if stock['exDivDate'] == "" or stock['exDivAmount'] == 0 or stock['paymentDate'] == "":
+                continue
             if sym in exDivOnly:
                 if 'exDivDate' in exDivOnly[sym]:
                     if exDivOnly[sym]['exDivDate'] != "":

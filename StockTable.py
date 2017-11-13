@@ -213,7 +213,6 @@ class StockTable(QtWidgets.QTableWidget):
                         cellNewText = ""
                         cellValue = self.ToDecimal(0)
                         if colDef['dataType'] == 'decimal':
-                            cellValue = self.ToDecimal("0")
                             if colValName == 'hld':
                                 cellValue = stkHolding
                             elif colValName == 'cost':
@@ -232,7 +231,7 @@ class StockTable(QtWidgets.QTableWidget):
                             if colValName == 'sym':
                                 cellNewText = symbolName
                             else:
-                                cellNewText = stkValues[colDef['colValName']] if (colDef['colValName'] in stkValues) else ""
+                                cellNewText = str(stkValues[colDef['colValName']]) if (colDef['colValName'] in stkValues) else ""
                         txtPrefix = colDef['prfxStr'] if 'prfxStr' in colDef else ""
                         txtSuffix = colDef['pstfxStr'] if ('pstfxStr' in colDef) else ""
                         cellNewText = txtPrefix + cellNewText + txtSuffix
@@ -289,8 +288,7 @@ class StockTable(QtWidgets.QTableWidget):
                 symbolName = uiRowDef['sym']
                 for colIdx in range(len(self.uiColDefs)):
                     colDef = self.uiColDefs[colIdx]
-                    colValName = colDef['colValName']
-                    if colValName == "sym":
+                    if colDef['colValName'] == "sym":
                         uiCell = self.item(rowIdx, colIdx)
                         uiCell.setText(symbolName)
                         break

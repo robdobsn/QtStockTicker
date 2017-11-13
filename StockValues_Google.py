@@ -248,9 +248,14 @@ class StockValues_Google:
         req = requests.get(url)
         # Get page and parse
         soup = BeautifulSoup(req.text, "html5lib")
+        stockInfo = {}
+        nameTable = soup.select("#ctl00_cph1_qp1_div1 div.rc_bg_bl table tr td")
+        if len(nameTable) > 2:
+            stockInfo["name"] = nameTable[1].getText().strip()
+
         perfTable = soup.select("#ctl00_cph1_qp1_div1 div.cb table tr td b")
         # Extract stocks table info
-        stockInfo = {}
+
         attrNames = ["price", "change", "open", "high", "ask", "volume", "chg_percent", "prev", "low", "bid",
                      "open_int"]
         for elIdx in range(len(perfTable)):

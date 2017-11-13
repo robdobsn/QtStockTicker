@@ -6,7 +6,7 @@ import copy
 import re
 from ibapi.wrapper import EWrapper
 from ibapi.client import EClient
-from ibapi import contract, ticktype
+from ibapi import contract
 from StockValues_Google import StockValues_Google
 
 '''
@@ -86,7 +86,10 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
                 print("StockValues: Unknown symbol not found")
             self.mapsLock.release()
         else:
-            print("StockValues: IB ERR reqId", reqId, "errorCode", errorCode, "errorStr", errorString)
+            if reqId == -1:
+                print("StockValues: IB INFO msgCode", errorCode, "msgStr", errorString)
+            else:
+                print("StockValues: IB INFO reqId", reqId, "msgCode", errorCode, "msgStr", errorString)
 
     def stop(self):
         # Setting this flag avoids calling disconnect() twice (which throws an error)
@@ -228,51 +231,119 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
     def marketDataCallback(self, reqId, tickType, price, attrib):
         pass
 
-    def tickPrice(self, reqId, tickType:ticktype.TickType, price:float, attrib):
+    def setValInStockDict(self, sym, elemName, val, stockDict):
+        if elemName not in stockDict or stockDict[elemName] is None or stockDict[elemName] != val:
+            stockDict[elemName] = val
+            return sym
+        return None
+
+    def setChangeInStockDict(self, sym, stockDict):
+        if "close" in stockDict and stockDict["close"] is not None and "price" in stockDict and stockDict["price"] is not None:
+            last = stockDict["price"]
+            stockDict["change"] = priceChange = last - stockDict["close"]
+            if last != 0:
+                stockDict["chg_percent"] = 100 * (priceChange) / last
+
+    def tickPrice(self, reqId, tickType:int, price:float, attrib):
         # Acquire lock on maps
         symbolDataChanged = None
-        self.mapsLock.acquire()
-        if reqId in self._mapPriceReqIdToStockInfo:
-            stockInfo = self._mapPriceReqIdToStockInfo[reqId]
-            if tickType == 4: # last
-                if "price" not in stockInfo or stockInfo["price"] is None or stockInfo["price"] != price:
-                    stockInfo["price"] = price
-                    symbolDataChanged = stockInfo["ySymbol"]
-                    if "open" in stockInfo and stockInfo["open"] is not None:
-                        stockInfo["change"] = price - stockInfo["open"]
-                        if price != 0:
-                            stockInfo["chg_percent"] = 100 * (price - stockInfo["open"]) / price
-            elif ticktype == 14: # open
-                if "open" not in stockInfo or stockInfo["open"] is None or stockInfo["open"] != price:
-                    stockInfo["open"] = price
-                    symbolDataChanged = stockInfo["ySymbol"]
-            elif ticktype == 8: # volume
-                if "volume" not in stockInfo or stockInfo["volume"] is None or stockInfo["volume"] != price:
-                    stockInfo["volume"] = price
-                    symbolDataChanged = stockInfo["ySymbol"]
-            elif tickType == 9: # close
-                if "close" not in stockInfo or stockInfo["close"] is None or stockInfo["close"] != price:
-                    stockInfo["close"] = price
-                    stockInfo["price"] = price
-                    symbolDataChanged = stockInfo["ySymbol"]
-            # else:
-            #     print("Received tickType", tickType, "price", price)
-            if symbolDataChanged:
-                nowInUk = datetime.datetime.now(pytz.timezone('GB'))
-                stockInfo["time"] = nowInUk
-            # Check if detailed info (long name of stock etc) already requested
-            if "detailsReqId" not in stockInfo:
-                # Request contract details for this symbol
-                detailsReqId = self._REQ_ID_DETAILS_BASE + self._nextReqId
-                self.reqContractDetails(detailsReqId, stockInfo["contractInfo"])
-                self._mapDetailsReqIdToPriceReqId[detailsReqId] = stockInfo["priceReqId"]
-                stockInfo["detailsReqId"] = detailsReqId
-                self._nextReqId += 1
-        # Release the lock on the map
-        self.mapsLock.release()
+        with self.mapsLock:
+            if reqId in self._mapPriceReqIdToStockInfo:
+                stockInfo = self._mapPriceReqIdToStockInfo[reqId]
+                sym = stockInfo["ySymbol"]
+                if sym == "MKLW.L":
+                    print("**************************", sym, tickType, price)
+                if tickType == 1:  # bid_price
+                    # Not this does not set symbolDataChanged
+                    self.setValInStockDict(sym, "bid_price", price, stockInfo)
+                elif tickType == 2:  # ask_price
+                    # Not this does not set symbolDataChanged
+                    self.setValInStockDict(sym, "ask_price", price, stockInfo)
+                elif tickType == 4: # last
+                    symbolDataChanged = self.setValInStockDict(sym, "price", price, stockInfo)
+                    if symbolDataChanged:
+                        self.setChangeInStockDict(sym, stockInfo)
+                elif tickType == 6:  # high
+                    symbolDataChanged = self.setValInStockDict(sym, "high", price, stockInfo)
+                elif tickType == 7:  # low
+                    symbolDataChanged = self.setValInStockDict(sym, "low", price, stockInfo)
+                elif tickType == 9: # close
+                    symbolDataChanged = self.setValInStockDict(sym, "close", price, stockInfo)
+                    if "price" not in stockInfo or stockInfo["price"] is None:
+                        self.setValInStockDict(sym, "price", price, stockInfo)
+                    if symbolDataChanged:
+                        self.setChangeInStockDict(sym, stockInfo)
+                elif tickType == 14:  # open
+                    symbolDataChanged = self.setValInStockDict(sym, "open", price, stockInfo)
+                    if "price" not in stockInfo or stockInfo["price"] is None:
+                        self.setValInStockDict(sym, "price", price, stockInfo)
+                else:
+                    print("StockValues: Unhandled tickPrice", tickType, "price", price)
+                if symbolDataChanged:
+                    nowInUk = datetime.datetime.now(pytz.timezone('GB'))
+                    stockInfo["time"] = nowInUk
+                # Check if detailed info (long name of stock etc) already requested
+                if "detailsReqId" not in stockInfo:
+                    # Request contract details for this symbol
+                    detailsReqId = self._REQ_ID_DETAILS_BASE + self._nextReqId
+                    self.reqContractDetails(detailsReqId, stockInfo["contractInfo"])
+                    self._mapDetailsReqIdToPriceReqId[detailsReqId] = stockInfo["priceReqId"]
+                    stockInfo["detailsReqId"] = detailsReqId
+                    self._nextReqId += 1
         # Callback if data has changed
         if symbolDataChanged is not None:
             self._symbolChangedCallback(symbolDataChanged)
+
+    def tickSize(self, reqId:int, tickType:int, size:int):
+        # Acquire lock on maps
+        symbolDataChanged = None
+        with self.mapsLock:
+            if reqId in self._mapPriceReqIdToStockInfo:
+                stockInfo = self._mapPriceReqIdToStockInfo[reqId]
+                sym = stockInfo["ySymbol"]
+                if tickType == 0:  # bid_size
+                    self.setValInStockDict(sym, "bid_size", size, stockInfo)
+                elif tickType == 3:  # ask_size
+                    self.setValInStockDict(sym, "ask_size", size, stockInfo)
+                elif tickType == 5:  # last_size
+                    self.setValInStockDict(sym, "last_size", size, stockInfo)
+                elif tickType == 8:  # volume
+                    symbolDataChanged = self.setValInStockDict(sym, "volume", size, stockInfo)
+                else:
+                    print("StockValues: Unhandled tickSize", tickType, "size", size)
+                if symbolDataChanged:
+                    nowInUk = datetime.datetime.now(pytz.timezone('GB'))
+                    stockInfo["time"] = nowInUk
+        # Callback if data has changed
+        if symbolDataChanged is not None:
+            self._symbolChangedCallback(symbolDataChanged)
+
+    def tickString(self, reqId:int, tickType:int, value:str):
+        if tickType == 32: # ask_exch
+            pass
+        elif tickType == 33: # bid_exch
+            pass
+        elif tickType == 45: # last_timestamp
+            pass
+        elif tickType == 84: # last_exch
+            pass
+        else:
+            print("StockValues: Unhandled tickString", tickType, "str", value)
+
+    def tickGeneric(self, reqId:int, tickType:int, value:float):
+        print("StockValues: Unhandled tickGeneric", tickType, "float", value)
+
+    def tickEFP(self, reqId:int, tickType:int, basisPoints:float,
+                formattedBasisPoints:str, totalDividends:float,
+                holdDays:int, futureLastTradeDate:str, dividendImpact:float,
+                dividendsToLastTradeDate:float):
+        print("StockValues: Unhandled tickEFP", tickType, "basisPoints", basisPoints,
+                "formattedBasisPoints", formattedBasisPoints, "totalDividends", totalDividends,
+                "holdDays", holdDays, "futureLastTradeDate", futureLastTradeDate,
+                "dividendImpact", dividendImpact, "dividendsToLastTradeDate", dividendsToLastTradeDate)
+
+    def tickSnapshotEnd(self, reqId:int):
+        print("StockValues: Unhandled tickSnapshotEnd", reqId)
 
     def contractDetails(self, reqId:int, contractDetails):
         self.mapsLock.acquire()
