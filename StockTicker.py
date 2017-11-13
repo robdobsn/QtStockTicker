@@ -129,14 +129,21 @@ class RStockTicker(QtWidgets.QMainWindow):
             # Add to list of tables
             self.watchTables.append(newTab)
 
-#        self.watchTable.initTable(self.watchTableColDefs, self.currencySign, False, QtGui.QFont('SansSerif', 9), QtGui.QFont('SansSerif', 8), QtGui.QFont('SansSerif', 11, QtGui.QFont.Bold))
-#        self.watchTable.populateTable(watchStocks)
-
         # Table(s) for portfolio stocks
         numPortfolioTables = 2
         self.portfolioTables = []
         for tabIdx in range(numPortfolioTables):
             newTab = StockTable()
+            newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, "folio", self.localConfigFile)
+            # Add actions
+            newTab.addAction(editAction)
+            newTab.addAction(self.getFontAction("Normal Font", "folio", "normal"))
+            newTab.addAction(self.getFontAction("Large Font", "folio", "large"))
+            newTab.addAction(self.getFontAction("Totals Font", "folio", "totals"))
+
+            newTab.addAction(exitAction)
+            newTab.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+            # Add to list of tables
             self.portfolioTables.append(newTab)
 
         # Populate tables
@@ -197,6 +204,27 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stocksViewLock.release()
         configData = self.stockHoldings.getConfigData()
         self.hostedConfigFile.configFileUpdate(configData)
+
+    def changeFont(self, tableName, tableFont):
+        print("Change font", tableName, tableFont)
+        if tableName == "watch":
+            curFontStr = self.watchTables[0].getFontStr(tableFont)
+        else:
+            curFontStr = self.portfolioTables[0].getFontStr(tableFont)
+        curQFont = QtGui.QFont()
+        curQFont.fromString(curFontStr)
+        fontStr = curQFont.toString()
+        font, valid = QtWidgets.QFontDialog.getFont(curQFont)
+        if valid and font is not None:
+            fontStr = font.toString()
+            if tableName == "watch":
+                for tab in self.watchTables:
+                    tab.setFontStr(tableFont, fontStr)
+            else:
+                for tab in self.portfolioTables:
+                    tab.setFontStr(tableFont, fontStr)
+
+
     def closeEvent(self, event):
         print('StockTicker: Stopping')
         self.stockValues.stop()
