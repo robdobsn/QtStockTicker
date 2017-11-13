@@ -26,3 +26,4 @@ exe = EXE(pyz,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
+          console=False , icon='StockTickerIcon.ico')
