@@ -221,3 +221,5 @@ pip-log.txt
 private*
 stocklist.json
 exdivinfo.json
+localConfig.json
+

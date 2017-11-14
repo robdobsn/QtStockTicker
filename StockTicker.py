@@ -4,7 +4,7 @@ import sys
 import threading
 
 from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 
 from StockHoldings import StockHoldings
 from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
@@ -36,6 +36,8 @@ class RStockTicker(QtWidgets.QMainWindow):
     windowTitle = ""
     MARKET_OPEN_CHECK_TICKS = 60
     ticksBeforeMarketOpenCheck = MARKET_OPEN_CHECK_TICKS
+    numWatchTables = 3
+    numFolioTables = 2
 
     def __init__(self):
         super(RStockTicker, self).__init__()
@@ -101,26 +103,23 @@ class RStockTicker(QtWidgets.QMainWindow):
 
     def initUI(self):
 
-        # Grid layout for the tables
-        self.gridLayout = QtWidgets.QGridLayout()
-
-        # Edit action
+        # Edit menu action
         editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)
         editAction.setStatusTip('Edit shares')
         editAction.triggered.connect(self.editStocksList)
 
-        # Exit action
+        # Exit menu action
         exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.quitApp)
 
         # Table(s) to handle watch list
-        numWatchTables = 3
+        self.watchTableSplitter = QtWidgets.QSplitter()
         self.watchTables = []
-        for tabIdx in range(numWatchTables):
+        for tabIdx in range(self.numWatchTables):
             newTab = StockTable()
             newTab.initTable(self, self.watchTableColDefs, self.currencySign, False, "watch", self.localConfigFile)
-            # Add actions
+            # Add menu actions
             newTab.addAction(editAction)
             newTab.addAction(self.getFontAction("Normal Font", "watch", "normal"))
             newTab.addAction(self.getFontAction("Large Font", "watch", "large"))
@@ -128,50 +127,48 @@ class RStockTicker(QtWidgets.QMainWindow):
             newTab.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             # Add to list of tables
             self.watchTables.append(newTab)
+            self.watchTableSplitter.addWidget(newTab)
 
         # Table(s) for portfolio stocks
-        numPortfolioTables = 2
+        self.portfolioTableSplitter = QtWidgets.QSplitter()
         self.portfolioTables = []
-        for tabIdx in range(numPortfolioTables):
+        for tabIdx in range(self.numFolioTables):
             newTab = StockTable()
-            newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==numPortfolioTables-1, "folio", self.localConfigFile)
-            # Add actions
+            newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==self.numFolioTables-1, "folio", self.localConfigFile)
+            # Add menu actions
             newTab.addAction(editAction)
             newTab.addAction(self.getFontAction("Normal Font", "folio", "normal"))
             newTab.addAction(self.getFontAction("Large Font", "folio", "large"))
             newTab.addAction(self.getFontAction("Totals Font", "folio", "totals"))
-
             newTab.addAction(exitAction)
             newTab.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
             # Add to list of tables
             self.portfolioTables.append(newTab)
+            self.portfolioTableSplitter.addWidget(newTab)
 
         # Populate tables
         self.populateTablesWithStocks()
         self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
 
-        # Span for watch tables and portfolio tables
-        watchTabColSpan = numPortfolioTables
-        portfolioTabColSpan = numWatchTables
+        # Layout for the tables
+        self.mainSplitter = QtWidgets.QSplitter(Qt.Vertical)
+        self.mainSplitter.addWidget(self.watchTableSplitter)
+        self.mainSplitter.addWidget(self.portfolioTableSplitter)
 
-        # Add tables to grid
-        for tabIdx in range(len(self.watchTables)):
-            self.gridLayout.addWidget(self.watchTables[tabIdx], 0, tabIdx*watchTabColSpan, 1, watchTabColSpan)
-        for tabIdx in range(len(self.portfolioTables)):
-            self.gridLayout.addWidget(self.portfolioTables[tabIdx], 1, tabIdx*portfolioTabColSpan, 1, portfolioTabColSpan)
+        # Layout for whole page
+        self.layout = QtWidgets.QHBoxLayout(self)
+        self.layout.addWidget(self.mainSplitter)
+        self.setLayout(self.layout)
 
-        # GridWidget that holds everything        
-        gridWidget = QtWidgets.QWidget()
-        gridWidget.setLayout(self.gridLayout)
+        # Add main splitter
+        self.setCentralWidget(self.mainSplitter)
 
-        self.setCentralWidget(gridWidget)
-#        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
-
+        # Window title
         self.windowTitle = 'Stock Ticker'
         self.setWindowTitle(self.windowTitle)
         self.resize(1280,800)
         self.show()
-        
+
     def populateTablesWithStocks(self):
         fullStockList = self.stockHoldings.getStockHolding(False)
         # Watch tables
@@ -213,7 +210,6 @@ class RStockTicker(QtWidgets.QMainWindow):
             curFontStr = self.portfolioTables[0].getFontStr(tableFont)
         curQFont = QtGui.QFont()
         curQFont.fromString(curFontStr)
-        fontStr = curQFont.toString()
         font, valid = QtWidgets.QFontDialog.getFont(curQFont)
         if valid and font is not None:
             fontStr = font.toString()
@@ -223,7 +219,6 @@ class RStockTicker(QtWidgets.QMainWindow):
             else:
                 for tab in self.portfolioTables:
                     tab.setFontStr(tableFont, fontStr)
-
 
     def closeEvent(self, event):
         print('StockTicker: Stopping')
@@ -288,32 +283,12 @@ class RStockTicker(QtWidgets.QMainWindow):
                 r = requests.get(url)
             except:
                 print ("StockTicker: Failed to send stock data to LED Panel")
-
-        # Handle window size updates
-        # watchWidth = 0
-        # watchHeight = 0
-        # portfolioWidth = 0
-        # portfolioHeight = 0
-        # for table in self.watchTables:
-        #     optSizeWatch = table.getOptimumTableSize()
-        #     watchWidth += optSizeWatch[0] + 20
-        #     watchHeight = max(watchHeight, optSizeWatch[1])
-        # watchHeight += 10
-        # for table in self.portfolioTables:
-        #     optSizePortfolio = table.getOptimumTableSize()
-        #     portfolioWidth += optSizePortfolio[0] + 20
-        #     portfolioHeight = max(portfolioHeight, optSizePortfolio[1])
-        # portfolioWidth += 20
-        # portfolioHeight += 10
-        # self.gridLayout.setRowStretch(0, watchHeight)
-        # self.gridLayout.setRowStretch(1, portfolioHeight)
-#        self.setMinimumWidth(max(watchWidth, portfolioWidth))
-#        self.setMinimumHeight(watchHeight+portfolioHeight)
         
 def main():
     app = QtWidgets.QApplication(sys.argv)
     stockTicker = RStockTicker()
-    sys.exit(app.exec_())
+    curExitCode = app.exec_()
+    sys.exit(curExitCode)
 
 if __name__ == '__main__':
     main()
