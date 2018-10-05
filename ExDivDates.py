@@ -4,6 +4,9 @@ import arrow
 from datetime import datetime
 from bs4 import BeautifulSoup
 import threading
+from selenium.webdriver.chrome.options import Options  
+from selenium.webdriver.common.keys import Keys
+import os
 
 '''
 Created on 13 Sep 2013
@@ -178,7 +181,15 @@ class ExDivDates():
                 self.bRunAlready = True
                 
                 if self.runHeadless:
-                    browser = webdriver.PhantomJS()
+                    print(os.path.abspath("chromedriver"))
+                    chrome_options = Options()  
+                    chrome_options.add_argument("--headless")
+                    chrome_options.add_argument("--no-sandbox")
+                    chrome_options.add_argument("--disable-extensions")
+                    browser = webdriver.Chrome(executable_path=os.path.abspath("c:/users/judy/downloads/ChromeDriverNeededForStockTicker/chromedriver.exe"),
+                                    chrome_options=chrome_options)
+
+                    # browser = webdriver.PhantomJS()
                 else:
                     browser = webdriver.Firefox() # Get local session of firefox
     

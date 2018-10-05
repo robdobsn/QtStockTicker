@@ -1,0 +1,13 @@
+arrow==0.10.0
+beautifulsoup4==4.5.3
+bs4==0.0.1
+html5lib==0.999999999
+ibapi==9.73.2
+PyQt5==5.8.2
+python-dateutil==2.6.1
+pytz==2017.3
+requests==2.13.0
+selenium==3.4.1
+sip==4.19.2
+six==1.11.0
+webencodings==0.5.1
