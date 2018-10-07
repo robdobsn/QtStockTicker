@@ -1,3 +1,7 @@
+venv
+.idea/
+
+
 #################
 ## Eclipse
 #################
@@ -223,3 +227,5 @@ stocklist.json
 exdivinfo.json
 localConfig.json
 
+.idea/misc.xml
+.idea/QtStockTicker.iml
