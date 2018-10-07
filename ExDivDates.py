@@ -7,7 +7,6 @@ import threading
 from selenium.webdriver.chrome.options import Options  
 from selenium.webdriver.common.keys import Keys
 import os
-import sys
 
 '''
 Created on 13 Sep 2013
@@ -182,8 +181,6 @@ class ExDivDates():
                 self.bRunAlready = True
                 
                 if self.runHeadless:
-                    print(os.path.abspath("chromedriver"))
-                    print(sys.path)
                     chrome_options = Options()  
                     chrome_options.add_argument("--headless")
                     chrome_options.add_argument("--no-sandbox")
