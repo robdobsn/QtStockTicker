@@ -1,3 +1,4 @@
+import logging
 from selenium import webdriver
 import time
 import arrow
@@ -6,7 +7,6 @@ from bs4 import BeautifulSoup
 import threading
 from selenium.webdriver.chrome.options import Options  
 from selenium.webdriver.common.keys import Keys
-import os
 
 '''
 Created on 13 Sep 2013
@@ -14,6 +14,8 @@ Updated 12 Nov 2017
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class ExDivDates():
     hourToRunAt = 4
@@ -112,7 +114,7 @@ class ExDivDates():
         # parse and extract ex dividend table
         soup = BeautifulSoup(pageText, "html5lib")
         exDivTable = soup.select("body section table tbody tr")
-        # print(exDivTable)
+        # logger.debug(f"extractDataFromPage: exDivTable {exDivTable}")
 
         # Extract rows and columns from table
         exDivInfo = {}
@@ -146,14 +148,14 @@ class ExDivDates():
                 if not exDivItems["exDivEPIC"] in exDivInfo:
                     exDivInfo[exDivItems["exDivEPIC"]] = exDivItems
                 else:
-                    print("Got 2 or more dividend lines, returning only earliest for", exDivItems["exDivEPIC"])
+                    logger.debug(f"extractDataFromPage: Duplicate EPIC {exDivItems['exDivEPIC']}")
             else:
-                print("Skipping", exDivItems)
+                logger.debug(f"extractDataFromPage: skipping {exDivItems}")
 
         # for sym, vals in exDivInfo.items():
-        #     print(vals)
+        #     logger.debug(vals)
 
-        print("ExDivDates: Processed", len(exDivTable), "rows, got", len(exDivInfo), "symbols")
+        logger.debug(f"extractDataFromPage: Processed {len(exDivTable)} rows, got {len(exDivInfo)} symbols")
         return exDivInfo
 
     def do_thread_scrape(self):
@@ -176,7 +178,7 @@ class ExDivDates():
                     
             if bRunNow:
                 pageURL = "http://www.dividenddata.co.uk"
-                print("ExDivDates:", datetime.now().strftime("%Y-%m-%d %H:%M"), ", URL", pageURL)
+                logger.debug(f"ExDivDates: {datetime.now().strftime('%Y-%m-%d %H:%M')}, URL {pageURL}")
                 self.bFirstRunDone = True
                 self.bRunAlready = True
                 
@@ -185,7 +187,7 @@ class ExDivDates():
                     chrome_options.add_argument("--headless")
                     chrome_options.add_argument("--no-sandbox")
                     chrome_options.add_argument("--disable-extensions")
-                    browser = webdriver.Chrome(chrome_options=chrome_options)
+                    browser = webdriver.Chrome(options=chrome_options)
                 else:
                     browser = webdriver.Firefox() # Get local session of firefox
     

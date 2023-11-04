@@ -1,10 +1,13 @@
 import json
+import logging
 
 '''
 Created on 01 Oct 2013
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class StockHoldings:
 

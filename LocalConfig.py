@@ -1,4 +1,7 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LocalConfig:
     _config = {}
@@ -10,7 +13,7 @@ class LocalConfig:
             with open(configFileName, "r") as cf:
                 self._config = json.loads(cf.read())
         except Exception as excp:
-            print("LocalConfig: failed to load config from", configFileName, excp)
+            logger.warn("LocalConfig: failed to load config from", configFileName, excp)
 
     def getItem(self, itemName, defaultVal):
         if itemName in self._config:
@@ -25,4 +28,4 @@ class LocalConfig:
                     strToWrite = json.dumps(self._config)
                     cf.write(strToWrite)
                 except Exception as excp:
-                    print("LocalConfig: write failed", excp)
+                    logger.warn("LocalConfig: write failed", excp)

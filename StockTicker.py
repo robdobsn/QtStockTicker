@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import threading
+import logging
+import requests
+import datetime
+import time
 
-from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtCore import QTimer, Qt
+from PySide6 import QtGui, QtWidgets, QtCore
+from PySide6.QtCore import QTimer, Qt
 
 from StockHoldings import StockHoldings
 from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
@@ -17,14 +22,17 @@ from decimal import Decimal
 from ExchangeRates import ExchangeRates
 from LocalConfig import LocalConfig
 
-import requests
-SEND_TO_MESSAGE_BOARD = False
-
 '''
 Created on 4 Sep 2013
 
 @author: rob dobson
 '''
+
+# Logging
+logger = logging.getLogger(__name__)
+
+# Send to message board
+SEND_TO_MESSAGE_BOARD = False
 
 class RStockTicker(QtWidgets.QMainWindow):
 
@@ -96,7 +104,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.initUI()
 
     def getFontAction(self, title, connectParam1, connectParam2):
-        fontAction = QtWidgets.QAction(QtGui.QIcon('font.png'), '&' + title, self)
+        fontAction = QtGui.QAction(QtGui.QIcon('font.png'), '&' + title, self)
         fontAction.setStatusTip(title)
         fontAction.triggered.connect(lambda: self.changeFont(connectParam1, connectParam2))
         return fontAction
@@ -104,12 +112,12 @@ class RStockTicker(QtWidgets.QMainWindow):
     def initUI(self):
 
         # Edit menu action
-        editAction = QtWidgets.QAction(QtGui.QIcon('edit.png'), '&Edit', self)
+        editAction = QtGui.QAction(QtGui.QIcon('edit.png'), '&Edit', self)
         editAction.setStatusTip('Edit shares')
         editAction.triggered.connect(self.editStocksList)
 
         # Exit menu action
-        exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
+        exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.quitApp)
 
@@ -203,7 +211,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.hostedConfigFile.configFileUpdate(configData)
 
     def changeFont(self, tableName, tableFont):
-        print("Change font", tableName, tableFont)
+        logger.debug("Change font", tableName, tableFont)
         if tableName == "watch":
             curFontStr = self.watchTables[0].getFontStr(tableFont)
         else:
@@ -221,7 +229,7 @@ class RStockTicker(QtWidgets.QMainWindow):
                     tab.setFontStr(tableFont, fontStr)
 
     def closeEvent(self, event):
-        print('StockTicker: Stopping')
+        logger.debug('StockTicker: Stopping')
         self.stockValues.stop()
         self.exDivDates.stop()
         self.updateTimer.stop()
@@ -233,7 +241,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         forceTableUpdate = False
         self.stocksViewLock.acquire()
         if self.stocksListChanged:
-            print ("StockTicker: Stock list changed")
+            logger.debug("StockTicker: Stock list changed")
             self.populateTablesWithStocks()
             self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
             self.stocksListChanged = False
@@ -263,10 +271,10 @@ class RStockTicker(QtWidgets.QMainWindow):
         if not forceTableUpdate:
             changedStockDict = self.stockValues.getMapOfStocksChangedSinceUIUpdated()
             if (changedStockDict) == 0:
-                # print("No Update Required")
+                # logger.debug(f"No Update Required {changedStockDict}")
                 return
             # else:
-            #     print("Doing update")
+            #     logger.debug(f"Doing update {changedStockDict}")
 
         # Update the tables
         for table in self.watchTables:
@@ -282,12 +290,36 @@ class RStockTicker(QtWidgets.QMainWindow):
                 url = 'http://192.168.0.229/text?<1>' + stkValues['name'] + ": " + stkValues['price'] + "  " + stkValues['change'] + " (" + stkValues['chg_percent'] + ")"
                 r = requests.get(url)
             except:
-                print ("StockTicker: Failed to send stock data to LED Panel")
+                logger.debug("StockTicker: Failed to send stock data to LED Panel")
         
 def main():
+    # Create logs folder if it doesn't exist
+    try:
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
+    except:
+        pass
+    # Log to file in logs folder with name based on data and time uniquely
+    logFileName = "logs/StockTicker_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".log"
+    # Logging to file and console with format including time, level and module
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s %(funcName)s %(message)s')
+    # Logging to file
+    fh = logging.FileHandler(logFileName)
+    fh.setFormatter(formatter)
+    fh.setLevel(logging.DEBUG)
+    logging.getLogger('').addHandler(fh)
+
+    # Logging to console
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    ch.setLevel(logging.DEBUG)
+    logging.getLogger('').addHandler(ch)
+
+    # Start the app
+    logger.debug("StockTicker: Starting")
     app = QtWidgets.QApplication(sys.argv)
     stockTicker = RStockTicker()
-    curExitCode = app.exec_()
+    curExitCode = app.exec()
     sys.exit(curExitCode)
 
 if __name__ == '__main__':

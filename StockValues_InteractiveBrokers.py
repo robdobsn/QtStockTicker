@@ -3,17 +3,19 @@ import datetime
 import pytz
 import time
 import copy
-import re
 from ibapi.wrapper import EWrapper
 from ibapi.client import EClient
 from ibapi import contract
 from StockValues_Google import StockValues_Google
+import logging
 
 '''
 Created on 11th November 2017
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class MarketDataWrapper(EWrapper):
     """
@@ -76,19 +78,19 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
             with self.mapsLock:
                 if reqId in self._mapPriceReqIdToStockInfo:
                     sym = self._mapPriceReqIdToStockInfo[reqId]["ySymbol"]
-                    print("StockValues: Symbol not matched", sym, "errorMsg", errorString)
+                    logger.warn(f"StockValues: IB ERROR reqId {reqId} Symbol not matched {sym} errorMsg {errorString}")
                     self._mapPriceReqIdToStockInfo.pop(reqId)
                     if sym in self._mapSymbolToPriceReqId:
                         self._mapSymbolToPriceReqId.pop(sym)
                     # Add to list of symbols to get from google
                     self._stockValuesFromGoogle.addStock(sym)
                 else:
-                    print("StockValues: Unknown symbol not found")
+                    logger.warn(f"StockValues: IB unknown symbol reqId {reqId} errorMsg {errorString}")
         else:
             if reqId == -1:
-                print("StockValues: IB INFO msgCode", errorCode, "msgStr", errorString)
+                logger.warn(f"StockValues: IB ERROR msgCode {errorCode} msgStr {errorString}")
             else:
-                print("StockValues: IB INFO reqId", reqId, "msgCode", errorCode, "msgStr", errorString)
+                logger.warn(f"StockValues: IB ERROR reqId {reqId} msgCode {errorCode} msgStr {errorString}")
 
     def stop(self):
         # Setting this flag avoids calling disconnect() twice (which throws an error)
@@ -275,7 +277,7 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
                     if "price" not in stockInfo or stockInfo["price"] is None:
                         self.setValInStockDict(sym, "price", price, stockInfo)
                 else:
-                    print("StockValues: Unhandled tickPrice", tickType, "price", price)
+                    logger.warn(f"StockValues: Unhandled tickPrice {tickType} price {price}")
                 if symbolDataChanged:
                     nowInUk = datetime.datetime.now(pytz.timezone('GB'))
                     stockInfo["time"] = nowInUk
@@ -307,7 +309,7 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
                 elif tickType == 8:  # volume
                     symbolDataChanged = self.setValInStockDict(sym, "volume", size, stockInfo)
                 else:
-                    print("StockValues: Unhandled tickSize", tickType, "size", size)
+                    logger.warn(f"StockValues: Unhandled tickSize {tickType} size {size}")
                 if symbolDataChanged:
                     nowInUk = datetime.datetime.now(pytz.timezone('GB'))
                     stockInfo["time"] = nowInUk
@@ -325,22 +327,19 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
         elif tickType == 84: # last_exch
             pass
         else:
-            print("StockValues: Unhandled tickString", tickType, "str", value)
+            logger.warn(f"StockValues: Unhandled tickString {tickType} str {value}")
 
     def tickGeneric(self, reqId:int, tickType:int, value:float):
-        print("StockValues: Unhandled tickGeneric", tickType, "float", value)
+        logger.warn(f"StockValues: Unhandled tickGeneric {tickType} float {value}")
 
     def tickEFP(self, reqId:int, tickType:int, basisPoints:float,
                 formattedBasisPoints:str, totalDividends:float,
                 holdDays:int, futureLastTradeDate:str, dividendImpact:float,
                 dividendsToLastTradeDate:float):
-        print("StockValues: Unhandled tickEFP", tickType, "basisPoints", basisPoints,
-                "formattedBasisPoints", formattedBasisPoints, "totalDividends", totalDividends,
-                "holdDays", holdDays, "futureLastTradeDate", futureLastTradeDate,
-                "dividendImpact", dividendImpact, "dividendsToLastTradeDate", dividendsToLastTradeDate)
+        logger.info(f"StockValues: Unhandled tickEFP {tickType} basisPoints {basisPoints} formattedBasisPoints {formattedBasisPoints} totalDividends {totalDividends} holdDays {holdDays} futureLastTradeDate {futureLastTradeDate} dividendImpact {dividendImpact} dividendsToLastTradeDate {dividendsToLastTradeDate}")
 
     def tickSnapshotEnd(self, reqId:int):
-        print("StockValues: Unhandled tickSnapshotEnd", reqId)
+        logger.info(f"StockValues: Unhandled tickSnapshotEnd {reqId}")
 
     def contractDetails(self, reqId:int, contractDetails):
         self.mapsLock.acquire()
@@ -391,7 +390,7 @@ class StockValues_InteractiveBrokers:
     def symbolDataChanged(self, symbol):
         with self._lockOnStockChangeList:
             self._dictOfStocksChangedSinceUIUpdate[symbol] = True
-            # print("UpdateTo", symbol, "len", len(self._dictOfStocksChangedSinceUIUpdate))
+            # logger.debug("UpdateTo", symbol, "len", len(self._dictOfStocksChangedSinceUIUpdate))
 
     def getMapOfStocksChangedSinceUIUpdated(self):
         changedStockDict = {}

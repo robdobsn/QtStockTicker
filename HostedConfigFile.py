@@ -4,6 +4,9 @@ import tempfile
 import json
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 '''
 Created on 07 Sep 2013
@@ -17,11 +20,19 @@ class HostedConfigFile():
     latestFileVersion = -1
     
     def initFromFile(self, fName):
-        with open(fName, 'r') as jsonFile:
-            localSetup = json.load(jsonFile)
-            if localSetup != None and 'ConfigLocations' in localSetup:
-                for locn in localSetup['ConfigLocations']:
-                    self.hostedDataLocations.append(locn)
+        try:
+            with open(fName, 'r') as jsonFile:
+                localSetup = json.load(jsonFile)
+                if localSetup != None and 'ConfigLocations' in localSetup:
+                    for locn in localSetup['ConfigLocations']:
+                        self.hostedDataLocations.append(locn)
+        except IOError as excp:
+            logger.warn ("HostedConfigFile I/O error({0}): {1}".format(excp.errno, excp.strerror))
+        except ValueError:
+            logger.warn ("HostedConfigFile Could not convert data to an integer.")
+        except:
+            logger.error ("HostedConfigFile Unexpected error:", sys.exc_info()[0])
+            raise
         
     def addDataLocation(self, hostURLForGet, filePathForGet, getUsing, hostURLForPut, filePathForPut, putUsing, userName, passWord):
         newLocation = { 'hostURLForGet': hostURLForGet, 'filePathForGet': filePathForGet, 'getUsing': getUsing, 
@@ -83,7 +94,7 @@ class HostedConfigFile():
                 latestFileIdx = fileIdx
         # Check if we failed to get a valid file from anywhere
         if latestFileIdx == -1:
-            print("No valid file available")
+            logger.warn(f"No valid config file available from any source")
             for tFile in tmpFiles:
                 if tFile != None:
                     tFile.close()
@@ -92,18 +103,18 @@ class HostedConfigFile():
         # Write back to versions that are not latest
         for fileIdx in range(len(fileVersions)):
             if fileVersions[fileIdx] != -1:
-                print("FileIdx", fileIdx, "Version", fileVersions[fileIdx]["ver"], "Source",fileVersions[fileIdx]["source"])
+                logger.debug(f"FileIdx {fileIdx} Version {fileVersions[fileIdx]['ver']} Source {fileVersions[fileIdx]['source']}")
             if latestVersion != fileVersions[fileIdx]["ver"]:
                 self.copyFileToLocation(self.hostedDataLocations[fileIdx], tmpFiles[latestFileIdx])
         # Get contents of latest file
-        print("LatestFileIdx", latestFileIdx, "Version", latestVersion)
+        logger.debug(f"LatestFileIdx {latestFileIdx} Version {latestVersion}")
         tmpFiles[latestFileIdx].seek(0, os.SEEK_SET)
         returnData = tmpFiles[latestFileIdx].read()
         # Close all temporary files (which should delete them)
         for tFile in tmpFiles:
             if tFile != None:
                 tFile.close()
-        print("Success")
+        logger.debug(f"Got config file from {fileVersions[latestFileIdx]['source']}")
         return returnData
                 
     def putConfigContentsToLocation(self, jsonStr):
@@ -112,7 +123,7 @@ class HostedConfigFile():
         tempFile.seek(0)
         for fileIdx in range(len(self.hostedDataLocations)):
             reslt = self.copyFileToLocation(self.hostedDataLocations[fileIdx], tempFile)
-            print("PutToLocationIdx", fileIdx, "Result", reslt)
+            logger.debug(f"PutToLocationIdx {fileIdx} Result {reslt}")
         
     def getFileWithFTP(self, locn, outFile):
         try:
@@ -120,53 +131,54 @@ class HostedConfigFile():
             ftp.login(locn['userName'], locn['passWord'])
             # ftp.dir()
             for filename in ftp.nlst(locn['filePathForGet']):
-                print('Getting ' + filename)
+                logger.debug(f"Getting FTP file {filename}")
                 ftp.retrlines('RETR ' + filename, outFile.write)
                 break
             ftp.close()
-            print ("Got file via FTP ", locn['hostURLForGet'])
+            logger.debug(f"Got file via FTP {locn['hostURLForGet']}")
             return True
         except Exception as excp:
-            print ("Failed to get from FTP", locn['hostURLForGet'], "excp", excp)
+            logger.warn(f"Failed to get from FTP {locn['hostURLForGet']} excp {excp}")
         return False
     
     def getFileWithHTTP(self, locn, outFile):
         reqFile = None
+        fullPath = locn['hostURLForGet'] + locn['filePathForGet']
         try:
-            reqFile = requests.get(locn['hostURLForGet'] + locn['filePathForGet'], auth=(locn['userName'], locn['passWord']), timeout=30)
+            reqFile = requests.get(fullPath, auth=(locn['userName'], locn['passWord']), timeout=30)
         except requests.exceptions.ConnectionError:
-            print ("HTTP ConnectionError")
+            logger.warn(f"HTTP ConnectionError {fullPath}")
         except requests.exceptions.HTTPError:
-            print ("HTTPError")
+            logger.warn(f"HTTPError {fullPath}")
         except requests.exceptions.URLRequired:
-            print ("HTTP URLRequired")
+            logger.warn(f"HTTP URLRequired {fullPath}")
         except requests.exceptions.TooManyRedirects:
-            print ("HTTP TooManyRedirects")
+            logger.warn(f"HTTP TooManyRedirects {fullPath}")
         except requests.exceptions.Timeout:
-            print ("HTTP Timeout")
+            logger.warn(f"HTTP Timeout {fullPath}")
         except requests.exceptions.RequestException:
-            print ("HTTP requests error")
+            logger.warn(f"HTTP requests error {fullPath}")
         if reqFile != None and reqFile.status_code == 200:
-            print (reqFile.status_code)
+            logger.debug(f"Got file via HTTP {fullPath} status {reqFile.status_code}")
             # Strip spurious newlines
             newText = "\r".join([s for s in reqFile.text.splitlines() if s.strip("\r\n")])
-            print(newText)
+            # logger.debug(f"Got file via HTTP {fullPath} text {newText}")
             outFile.write(newText)
             return True
         return False
 
     def getLocalFile(self, locn, outFile):
-        print ("Trying to get local file ", locn['hostURLForGet'] + locn['filePathForGet'], "...", end="")
+        logger.debug(f"Trying to get local file {locn['hostURLForGet'] + locn['filePathForGet']}")
         try:
             with open(locn['hostURLForGet'] + locn['filePathForGet'], "r") as inFile:
-                print ("Got ok")
+                logger.debug(f"Got local file {locn['hostURLForGet'] + locn['filePathForGet']}")
                 return self.copyFileContents(inFile, outFile)
         except IOError as excp:
-            print ("getLocalFile I/O error({0}): {1}".format(excp.errno, excp.strerror))
+            logger.warn (f"getLocalFile I/O error({excp.errno}): {excp.strerror}")
         except ValueError:
-            print ("Could not convert data to an integer.")
+            logger.warn ("getLocalFile Could not convert data to an integer.")
         except:
-            print ("Unexpected error:", sys.exc_info()[0])
+            logger.error ("getLocalFile Unexpected error:", sys.exc_info()[0])
             raise
         return False
 
@@ -179,7 +191,7 @@ class HostedConfigFile():
                     break
                 outFile.write(linStr)
         except IOError as excp:
-            print ("copyFileContents I/O error({0}): {1}".format(excp.errno, excp.strerror))
+            logger.error(f"copyFileContents I/O error({excp.errno}): {excp.strerror}")
         except:
             return False
         return True
@@ -200,7 +212,7 @@ class HostedConfigFile():
                 ftp.cwd(fileNameParts[0])
                 ftp.storbinary("STOR " + fileNameParts[1], tempFile)
         except ftplib.all_errors as excp:
-            print("FTP error", str(excp))
+            logger.warn("FTP error", str(excp))
             tempFile.close()
             return False
         tempFile.close()
@@ -210,14 +222,14 @@ class HostedConfigFile():
         success = False
         try:
             if locn['putUsing'] == 'ftp':
-                print ("Attempting to copy file using ftp to ", locn['hostURLForPut'], locn['filePathForPut'])
+                logger.debug(f"Attempting to copy file using ftp to {locn['hostURLForPut']} {locn['filePathForPut']}")
                 success = self.putFileWithFTP(locn, fileToCopyFrom)
             elif locn['putUsing'] == 'local':
-                print ("Attempting to copy file local to ", locn['hostURLForPut'], locn['filePathForPut'])
+                logger.debug(f"Attempting to copy file local to {locn['hostURLForPut']} {locn['filePathForPut']}")
                 with open(locn['hostURLForPut'] + locn['filePathForPut'], "wt") as outFile:
                     success = self.copyFileContents(fileToCopyFrom, outFile)
         except:
-            print("Failed to copy file")
+            logger.warn(f"Failed to copy file to {locn['hostURLForPut']} {locn['filePathForPut']}")
         return success
 
     def configFileUpdate(self, updatedData):
@@ -225,4 +237,3 @@ class HostedConfigFile():
         updatedData["FileVersion"] = self.latestFileVersion + 1
         jsonStr = json.dumps(updatedData, indent=4)
         self.putConfigContentsToLocation(jsonStr)
-        

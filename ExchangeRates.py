@@ -1,9 +1,7 @@
+import logging
 import threading
-import datetime
-import pytz
 import time
 import copy
-import json
 import requests
 
 '''
@@ -11,6 +9,8 @@ Created on 11 Nov 2017
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class ExchangeRates:
     def __init__(self):
@@ -46,14 +46,14 @@ class ExchangeRates:
             # Get the exchange rates
             try:
                 url = 'https://api.fixer.io/latest?base=GBP'
-                print("ExchangeRates: Requesting " + url)
+                logger.debug(f"ExchangeRates: Requesting {url}")
                 r = requests.get(url)
                 exRtData = r.json()
                 with self.lock:
                     self.exchgRateData = exRtData
-                print("ExRates", self.exchgRateData)
+                logger.debug(f"ExchangeRates: got {exRtData}")
             except:
-                print("ExchangeRates: get failed")
+                logger.warn("ExchangeRates: get failed")
 
             # Wait for next time
             delayTime = 3600

@@ -1,5 +1,6 @@
-from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtWidgets import QTableWidget
+import logging
+from PySide6 import QtGui, QtWidgets, QtCore
+from PySide6.QtWidgets import QTableWidget
 from PickStockDialog import PickStockDialog
 
 '''
@@ -7,6 +8,8 @@ Created on 04 Oct 2013
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class StockSettingsDialog(QtWidgets.QDialog):
     updatedStockHoldings = []
@@ -126,7 +129,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
 
     def createRowContent(self, table, rowIdx, symbolStr, holdingStr, costStr, exDivDateStr, exDivAmountStr, exDivPayDateStr):
         #self.table.setRowHeight(rowIdx,20)
-        #print (stk['symbol'], stk['holding'], stk['cost'])
+        #logger.debug (stk['symbol'], stk['holding'], stk['cost'])
         it1 = QtWidgets.QTableWidgetItem(symbolStr)
         table.setItem(rowIdx, 0, it1)
         ic2 = QtGui.QIcon('edit.png')
@@ -156,10 +159,10 @@ class StockSettingsDialog(QtWidgets.QDialog):
         table.setCellWidget(rowIdx, 7, bt5)
 
     def pickStockClick(self, arg1):
-#        print (type(arg1))
+#        logger.debug (type(arg1))
 #        self.table.selectRow(3)
 #        for iti in self.table.selectedItems():
-#            print("Selected ", iti.text())
+#            logger.debug("Selected ", iti.text())
         curRowIdx = self.table.currentRow()
         if curRowIdx < 0:
             return

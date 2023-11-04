@@ -7,12 +7,15 @@ from urllib.request import Request, urlopen
 import json
 from bs4 import BeautifulSoup
 import requests
+import logging
 
 '''
 Created on 11 Nov 2017
 
 @author: rob dobson
 '''
+
+logger = logging.getLogger(__name__)
 
 class StockValues_Google:
     bOnlyUpdateWhileMarketOpen = True
@@ -37,7 +40,7 @@ class StockValues_Google:
         self.start()
 
     def addStock(self, symbol):
-        print("Adding symbol", symbol, "to be got from Google")
+        logger.debug(f"StockValues_Google: Adding symbol {symbol} to be got from Google")
         self.listUpdateLock.acquire()
         curList = []
         for sym in self.highFreqSymList:
@@ -100,7 +103,7 @@ class StockValues_Google:
                 self.highFreqSymList = self.pendingTickerlist
                 self.pendingTickerlist = None
                 self.dataUpdatedSinceLastUIUpdate = True
-                # print("data up = true")
+                # logger.debug("data up = true")
                 updateNeeded = True
             self.listUpdateLock.release()
 
@@ -139,7 +142,7 @@ class StockValues_Google:
                 stkdata = self.get_quotes(stocks)
                 stkdataValid = True
             except:
-                print ("get_quote failed for " + str(stocks[0]))
+                logger.debug ("get_quote failed for " + str(stocks[0]))
                 self.status = "failed for " + str(stocks[0])
                 # self.lock.acquire()
                 # if not ticker in self.stockData:
@@ -157,12 +160,12 @@ class StockValues_Google:
                             if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
                                 self.dataUpdatedSinceLastUIUpdate = True
                                 self._symbolChangedCallback(ticker)
-                                # print("DataUPDATE = TRUE")
+                                # logger.debug(DataUPDATE = TRUE")
                                 break
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0
                         self.stockData[ticker]['time'] = nowInUk
-                        print("Stock update", self.stockData[ticker])
+                        logger.debug("Stock update", self.stockData[ticker])
                 finally:
                     self.lock.release()
 
@@ -172,7 +175,7 @@ class StockValues_Google:
             else:
                 nextStockIdx += maxStocksPerPass
 
-            # print("data updated", self.dataUpdatedSinceLastGot)
+            # logger.debug(f"StockValues_Google: updated {self.dataUpdatedSinceLastGot})
 
             delayTime = 10 if firstpass else 120
             for delayCount in range(delayTime):
@@ -203,7 +206,7 @@ class StockValues_Google:
                     if "cp" in stkFirst:
                         quotes[symbol]["chg_percent"] = stkFirst["cp"]
             except:
-                print("StockValues_Google: failed to get quote for", symbol)
+                logger.debug(f"StockValues_Google: failed to get quote for {symbol}")
                 tryAlternateList.append(symbol)
         # Now try an alternate source
         for symbol in tryAlternateList:
@@ -217,7 +220,7 @@ class StockValues_Google:
                     stockInfo = self.requestFromAlternate(sym, exchange)
                     quotes[symbol] = stockInfo
             except:
-                print("Couldn't get quote for", symbol)
+                logger.debug(f"Couldn't get quote for {symbol} from alternate source")
         return quotes
 
     # def stripQuotes(self, inStr):
@@ -227,7 +230,7 @@ class StockValues_Google:
     
     def requestFromGoogle(self, symbol):
         url = 'https://finance.google.com/finance?output=json&q=' + symbol
-        print ("StockValues_Google: Requesting " + url)
+        logger.debug(f"StockValues_Google: Requesting {url}")
         req = Request(url)
         resp = urlopen(req)
         readVal = resp.read()
@@ -238,13 +241,13 @@ class StockValues_Google:
             jsonStr = jsonStr[slashslashPos+2:].strip()
         if jsonStr.find("{") == 0:
             jsonStr = "[" + jsonStr + "]"
-        # print("Response", jsonStr)
+        # logger.debug(f"Response {jsonStr}")
         return jsonStr
 
     def requestFromAlternate(self, symbol, exchange):
 
         url = 'http://eoddata.com/stockquote/' + exchange + "/" + symbol + ".htm"
-        print ("StockValues_Google: Requesting " + url)
+        logger.debug(f"StockValues_Google: Requesting {url}")
         req = requests.get(url)
         # Get page and parse
         soup = BeautifulSoup(req.text, "html5lib")

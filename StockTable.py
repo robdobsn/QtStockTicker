@@ -1,16 +1,18 @@
-from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtCore import QTime
-
-from re import sub
-from decimal import Decimal
-
 import os
+from re import sub
+import logging
+from decimal import Decimal
+from PySide6 import QtGui, QtWidgets, QtCore
+from PySide6.QtCore import QElapsedTimer
 
 '''
 Created on 10 Oct 2013
 
 @author: rob dobson
 '''
+
+# Logging
+logger = logging.getLogger(__name__)
 
 class StockTable(QtWidgets.QTableWidget):
 
@@ -34,7 +36,7 @@ class StockTable(QtWidgets.QTableWidget):
     totalValueCol = 0
     totalCommentCol = 0
     dataFlashTimerStarted = False
-    dataFlashTimer = QTime()
+    dataFlashTimer = QElapsedTimer()
     dataFlashTimeMs = 400
     currencySign = ""
     fontsInUse = {}
@@ -76,7 +78,7 @@ class StockTable(QtWidgets.QTableWidget):
             fontSize = 9
         if height > 40:
             fontSize = 10
-        # print("height", height, "fontsize", fontSize)
+        # logger.debug("height", height, "fontsize", fontSize)
         if tableFontId == 'large':
             fontSize += 1
         elif tableFontId == "totals":
@@ -95,7 +97,7 @@ class StockTable(QtWidgets.QTableWidget):
         height = (table_size.height() -  (gw * (rows - 1))) / rows
         if height < 5:
             height = 5
-        # print("Table height", height)
+        # logger.debug("Table height", height)
         for row in range(self.rowCount()):
             self.setRowHeight(row, height)
             for col in range(self.columnCount()):
@@ -112,7 +114,7 @@ class StockTable(QtWidgets.QTableWidget):
                 self.fontsInUse[tableFontId] = fontStr
 
     def resizeEvent(self, newSize):
-        # print("Resizing")
+        # logger.debug("Resizing")
         self.updateTableFonts()
 
     def getFontStr(self, tableFontId):

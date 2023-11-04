@@ -1,5 +1,6 @@
-from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtWidgets import QTableWidget
+import logging
+from PySide6 import QtGui, QtWidgets, QtCore
+from PySide6.QtWidgets import QTableWidget
 
 '''
 Created on 04 Oct 2013
@@ -50,7 +51,7 @@ class PickStockDialog(QtWidgets.QDialog):
         rowIdx = 0
         for stk in self.stockSymbolList.getStockList():
             #self.table.setRowHeight(rowIdx,20)
-            # print (stk[0], stk[1])
+            # logger.debug (stk[0], stk[1])
             it1 = QtWidgets.QTableWidgetItem(stk[1])
             it1.setFlags(it1.flags() ^ QtCore.Qt.ItemIsEditable)
             it1.setFont(dialogFont)
