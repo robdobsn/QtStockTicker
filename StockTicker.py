@@ -30,6 +30,15 @@ Created on 4 Sep 2013
 
 # Logging
 logger = logging.getLogger(__name__)
+basedir = os.path.dirname(__file__)
+
+# Taskbar icon control
+try:
+    from ctypes import windll  # Only exists on Windows.
+    myappid = 'robdobson.stockticker.main.version' # arbitrary string
+    windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+except ImportError:
+    pass
 
 # Send to message board
 SEND_TO_MESSAGE_BOARD = False
@@ -318,6 +327,7 @@ def main():
     # Start the app
     logger.debug("StockTicker: Starting")
     app = QtWidgets.QApplication(sys.argv)
+    app.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'StockTickerIcon.ico')))
     stockTicker = RStockTicker()
     curExitCode = app.exec()
     sys.exit(curExitCode)
