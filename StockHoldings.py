@@ -1,29 +1,31 @@
 import json
 import logging
 
+from StockHolding import StockHolding, StocksDataFileContents
+
 '''
 Created on 01 Oct 2013
 
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class StockHoldings:
 
-    stockreader = None
-    stockHolding = {}
+    def __init__(self):
+        self.stockHoldingsList: list[StockHolding] = []
 
     # def readFromJsonFile(self, fName):
     #     with open(fName, 'r') as jsonFile:
     #         jsonData = json.load(jsonFile)
     #         self.setupFromJsonData(jsonData)
             
-    def setupFromConfigData(self, configData):
+    def loadFromStocksDataFileContents(self, configData: StocksDataFileContents | None) -> None:
         if configData != None:
             if 'StockInfo' in configData:
-                self.stockHolding = configData['StockInfo']
-                for stock in self.stockHolding:
+                self.stockHoldingsList = configData['StockInfo']
+                for stock in self.stockHoldingsList:
                     if not "exDivDate" in stock:
                         stock["exDivDate"] = ""
                     if not "exDivAmount" in stock:
@@ -31,21 +33,21 @@ class StockHoldings:
                     if not "paymentDate" in stock:
                         stock["paymentDate"] = ""
 
-    def getStockSymbols(self):
-        return [dct['symbol'] for dct in self.stockHolding]
+    def getStockSymbols(self) -> list[str]:
+        return [dct['symbol'] for dct in self.stockHoldingsList]
     
-    def numStocks(self):
-        return len(self.stockHolding)
+    def numStocks(self) -> int:
+        return len(self.stockHoldingsList)
     
-    def getStockHolding(self, bSorted):
+    def getStockHoldings(self, bSorted: bool) -> list[StockHolding]:
         if not bSorted:
-            return self.stockHolding
-        return sorted(self.stockHolding, key=lambda k: k['symbol'])
+            return self.stockHoldingsList
+        return sorted(self.stockHoldingsList, key=lambda k: k['symbol'])
     
     def setHoldings(self, newHoldings):
-        self.stockHolding = newHoldings
+        self.stockHoldingsList = newHoldings
         
     def getConfigData(self):
-        stockData = { "StockInfo": self.stockHolding}
+        stockData = { "StockInfo": self.stockHoldingsList}
         return stockData
     

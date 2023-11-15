@@ -5,6 +5,9 @@ from decimal import Decimal
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QElapsedTimer
 
+from LocalConfig import LocalConfig
+from StockHolding import StockHolding
+
 '''
 Created on 10 Oct 2013
 
@@ -12,7 +15,7 @@ Created on 10 Oct 2013
 '''
 
 # Logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class StockTable(QtWidgets.QTableWidget):
 
@@ -41,7 +44,7 @@ class StockTable(QtWidgets.QTableWidget):
     currencySign = ""
     fontsInUse = {}
 
-    def initTable(self, parent, colDefs, currencySign, bTotalsRow, tableId, localConfigFile):
+    def initTable(self, parent: object, colDefs: list[dict[str,str]], currencySign: str, bTotalsRow: bool, tableId: str, localConfigFile: LocalConfig):
         self.uiColDefs = colDefs
         self.currencySign = currencySign
         self.bTotalsRow = bTotalsRow
@@ -54,6 +57,7 @@ class StockTable(QtWidgets.QTableWidget):
         self.setShowGrid(False)
         self.setFocusPolicy(QtCore.Qt.NoFocus)
         self.verticalHeader().setVisible(False)
+        self.verticalHeader().setMinimumSectionSize(2)
         colIdx = 0
         for colDef in self.uiColDefs:
             hdrItem = QtWidgets.QTableWidgetItem(colDef['colLbl'])
@@ -67,7 +71,7 @@ class StockTable(QtWidgets.QTableWidget):
         palette.setBrush(QtGui.QPalette.Base, self.brushBackground)
         self.setPalette(palette)
 
-    def getDefaultFont(self, height, tableFontId):
+    def getDefaultFont(self, height: int, tableFontId: str):
         fontSize = 6
         weight = 50
         if height > 15:
@@ -78,7 +82,6 @@ class StockTable(QtWidgets.QTableWidget):
             fontSize = 9
         if height > 40:
             fontSize = 10
-        # logger.debug("height", height, "fontsize", fontSize)
         if tableFontId == 'large':
             fontSize += 1
         elif tableFontId == "totals":
@@ -93,13 +96,13 @@ class StockTable(QtWidgets.QTableWidget):
         gw = 0  # Grid line width
         rows = self.rowCount() or 1
         cols = self.columnCount() or 1
-        width = (table_size.width() - (gw * (cols - 1))) / cols
-        height = (table_size.height() -  (gw * (rows - 1))) / rows
-        if height < 5:
-            height = 5
-        # logger.debug("Table height", height)
+        colWidth = (table_size.width() - (gw * (cols - 1))) / cols
+        rowHeight = (table_size.height() -  (gw * (rows - 1))) / rows
+        if rowHeight < 5:
+            rowHeight = 5
+        # logger.debug(f"numRows {rows} numCols {cols} tableWidth {table_size.width()} tableHeight {table_size.height()} colWidth {colWidth} rowHeight {rowHeight}")
         for row in range(self.rowCount()):
-            self.setRowHeight(row, height)
+            self.setRowHeight(row, int(rowHeight))
             for col in range(self.columnCount()):
                 if 'fontSize' in self.uiColDefs[col] and self.uiColDefs[col]['fontSize'] == 'large':
                     tableFontId = "large"
@@ -107,26 +110,25 @@ class StockTable(QtWidgets.QTableWidget):
                     tableFontId = "totals"
                 else:
                     tableFontId = "normal"
-                fontStr = self.localConfigFile.getItem("table_"+self.tableId+"_"+tableFontId, self.getDefaultFont(height, tableFontId))
+                fontStr = self.localConfigFile.getItem("table_"+self.tableId+"_"+tableFontId, self.getDefaultFont(int(rowHeight), tableFontId))
                 fontToUse = QtGui.QFont()
                 fontToUse.fromString(fontStr)
                 self.item(row, col).setFont(fontToUse)
                 self.fontsInUse[tableFontId] = fontStr
 
-    def resizeEvent(self, newSize):
-        # logger.debug("Resizing")
+    def resizeTableCells(self):
         self.updateTableFonts()
 
-    def getFontStr(self, tableFontId):
+    def getFontStr(self, tableFontId: str):
         if tableFontId in self.fontsInUse:
             return self.fontsInUse[tableFontId]
         return ""
 
-    def setFontStr(self, tableFontId, newFontStr):
+    def setFontStr(self, tableFontId: str, newFontStr: str):
         self.localConfigFile.setItem("table_"+self.tableId+"_"+tableFontId, newFontStr)
         self.updateTableFonts()
 
-    def populateTable(self, stockHolding):
+    def populateTable(self, stockHolding: list[StockHolding]):
         
         # Stock items table
         self.uiRowDefs = []

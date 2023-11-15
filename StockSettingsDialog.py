@@ -9,7 +9,7 @@ Created on 04 Oct 2013
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class StockSettingsDialog(QtWidgets.QDialog):
     updatedStockHoldings = []
@@ -57,8 +57,8 @@ class StockSettingsDialog(QtWidgets.QDialog):
 
         # Table items
         rowIdx = 0
-        stockHolding = self.stockHoldings.getStockHolding(False)
-        for stk in stockHolding:
+        stockHoldings = self.stockHoldings.getStockHoldings(False)
+        for stk in stockHoldings:
             self.createRowContent(self.table, rowIdx, stk[self.colDefs[0]], "{:.0f}".format(stk[self.colDefs[2]]), "{0:f}".format(stk[self.colDefs[3]]).rstrip('0').rstrip('.'), stk[self.colDefs[4]], "{:.0f}".format(stk[self.colDefs[5]]), stk[self.colDefs[6]])
             rowIdx += 1
 #        butWidth = ic2.availableSizes(mode=QtGui.QIcon.Normal, state=QtGui.QIcon.Off)[0].width()
@@ -129,7 +129,6 @@ class StockSettingsDialog(QtWidgets.QDialog):
 
     def createRowContent(self, table, rowIdx, symbolStr, holdingStr, costStr, exDivDateStr, exDivAmountStr, exDivPayDateStr):
         #self.table.setRowHeight(rowIdx,20)
-        #logger.debug (stk['symbol'], stk['holding'], stk['cost'])
         it1 = QtWidgets.QTableWidgetItem(symbolStr)
         table.setItem(rowIdx, 0, it1)
         ic2 = QtGui.QIcon('edit.png')
@@ -159,10 +158,6 @@ class StockSettingsDialog(QtWidgets.QDialog):
         table.setCellWidget(rowIdx, 7, bt5)
 
     def pickStockClick(self, arg1):
-#        logger.debug (type(arg1))
-#        self.table.selectRow(3)
-#        for iti in self.table.selectedItems():
-#            logger.debug("Selected ", iti.text())
         curRowIdx = self.table.currentRow()
         if curRowIdx < 0:
             return

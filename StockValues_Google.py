@@ -15,7 +15,7 @@ Created on 11 Nov 2017
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class StockValues_Google:
     bOnlyUpdateWhileMarketOpen = True
@@ -103,7 +103,6 @@ class StockValues_Google:
                 self.highFreqSymList = self.pendingTickerlist
                 self.pendingTickerlist = None
                 self.dataUpdatedSinceLastUIUpdate = True
-                # logger.debug("data up = true")
                 updateNeeded = True
             self.listUpdateLock.release()
 
@@ -142,7 +141,7 @@ class StockValues_Google:
                 stkdata = self.get_quotes(stocks)
                 stkdataValid = True
             except:
-                logger.debug ("get_quote failed for " + str(stocks[0]))
+                logger.debug(f"get_quote failed for {stocks[0]}")
                 self.status = "failed for " + str(stocks[0])
                 # self.lock.acquire()
                 # if not ticker in self.stockData:
@@ -160,12 +159,11 @@ class StockValues_Google:
                             if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
                                 self.dataUpdatedSinceLastUIUpdate = True
                                 self._symbolChangedCallback(ticker)
-                                # logger.debug(DataUPDATE = TRUE")
                                 break
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0
                         self.stockData[ticker]['time'] = nowInUk
-                        logger.debug("Stock update", self.stockData[ticker])
+                        logger.debug(f"stockUpdateThread {self.stockData[ticker]}")
                 finally:
                     self.lock.release()
 
@@ -174,9 +172,6 @@ class StockValues_Google:
                 firstpass = False
             else:
                 nextStockIdx += maxStocksPerPass
-
-            # logger.debug(f"StockValues_Google: updated {self.dataUpdatedSinceLastGot})
-
             delayTime = 10 if firstpass else 120
             for delayCount in range(delayTime):
                 if not self.running:
@@ -241,7 +236,6 @@ class StockValues_Google:
             jsonStr = jsonStr[slashslashPos+2:].strip()
         if jsonStr.find("{") == 0:
             jsonStr = "[" + jsonStr + "]"
-        # logger.debug(f"Response {jsonStr}")
         return jsonStr
 
     def requestFromAlternate(self, symbol, exchange):

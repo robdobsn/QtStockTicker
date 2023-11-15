@@ -12,7 +12,7 @@ Created on 24 Sep 2013
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class StockValues_Yahoo:
     bOnlyUpdateWhileMarketOpen = False
@@ -80,7 +80,6 @@ class StockValues_Yahoo:
                 self.tickerlist = self.pendingTickerlist
                 self.pendingTickerlist = None
                 self.dataUpdatedSinceLastUIUpdate = True
-                # logger.debug("data up = true")
                 updateNeeded = True
             self.listUpdateLock.release()
 
@@ -115,7 +114,7 @@ class StockValues_Yahoo:
                 stkdata = self.get_quotes(stocks)
                 stkdataValid = True
             except:
-                logger.debug(f"get_quote failed for {nextStockIdx}")
+                logger.debug(f"stockUpdateThread get_quote failed for {nextStockIdx}")
                 self.status = "failed for " + str(nextStockIdx)
                 # self.lock.acquire()
                 # if not ticker in self.stockData:
@@ -132,7 +131,6 @@ class StockValues_Yahoo:
                         for k,v in values.items():
                             if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
                                 self.dataUpdatedSinceLastUIUpdate = True
-                                # logger.debug("DataUPDATE = TRUE")
                                 break
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0
@@ -145,9 +143,6 @@ class StockValues_Yahoo:
                 firstpass = False
             else:
                 nextStockIdx += maxStocksPerPass
-
-            # logger.debug("data updated", self.dataUpdatedSinceLastGot)
-
             delayTime = 0 if firstpass else (9 if marketOpen else 600)
             for delayCount in range(delayTime):
                 if not self.running:
@@ -167,9 +162,6 @@ class StockValues_Yahoo:
             symbolList+=symbol
         lines = self._request(symbolList, 'sl1c1vp2n').split('\n')
         quotes = {}
-#        if len(symbols) != len(lines):
-#            logger.debug("Problem - returned values don't match symbols - numSym " + str(len(symbolList)) + ", str(numVals)" + len(lines))
-#            return {}
         for symIdx in range(len(lines)):
             values = lines[symIdx].strip().split(',')
             ticker = self.stripQuotes(values[0])
@@ -190,7 +182,6 @@ class StockValues_Yahoo:
     # Borrowed from ystockquote
     def _request(self, symbol, stat):
         url = 'http://finance.yahoo.com/d/quotes.csv?s=%s&f=%s' % (symbol, stat)
-        #logger.debug ("Requesting " + url)
         req = Request(url)
         resp = urlopen(req)
         readVal = resp.read()

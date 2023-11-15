@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import re
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 '''
 Created on 28 Sep 2013
@@ -35,10 +35,8 @@ class StockSymbolList():
             return
         soup = BeautifulSoup(r.text, "html.parser")
         for x in soup.find_all('a', attrs={'class':"linkTabs"}):
-            #logger.debug (x.text)
             mtch = re.match("(.+?)\((.+?)\)", x.text)
             if (mtch != None and mtch.lastindex == 2):
-                #logger.debug (mtch.group(1), mtch.group(2))
                 # Append .L to make it work with Yahoo
                 coName = mtch.group(1)
                 symb = mtch.group(2) + ".L" if (mtch.group(2)[-1]!='.') else mtch.group(2) + "L" 

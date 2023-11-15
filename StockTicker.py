@@ -10,7 +10,6 @@ import time
 
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QTimer, Qt
-
 from StockHoldings import StockHoldings
 from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
 from StockSettingsDialog import StockSettingsDialog
@@ -29,8 +28,9 @@ Created on 4 Sep 2013
 '''
 
 # Logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 basedir = os.path.dirname(__file__)
+logger.setLevel(logging.DEBUG)
 
 # Taskbar icon control
 try:
@@ -45,19 +45,18 @@ SEND_TO_MESSAGE_BOARD = False
 
 class RStockTicker(QtWidgets.QMainWindow):
 
-    stockHoldings = None
-    updateTimer = None
-    currencySign = "\xA3"
-    stocksViewLock = threading.Lock()
-    stocksListChanged = False
-    windowTitle = ""
-    MARKET_OPEN_CHECK_TICKS = 60
-    ticksBeforeMarketOpenCheck = MARKET_OPEN_CHECK_TICKS
-    numWatchTables = 3
-    numFolioTables = 2
-
     def __init__(self):
+        # Superclass
         super(RStockTicker, self).__init__()
+        # Init
+        self.currencySign = "\xA3"
+        self.stocksViewLock = threading.Lock()
+        self.stocksListChanged = False
+        self.windowTitle = ""
+        self.MARKET_OPEN_CHECK_TICKS = 60
+        self.ticksBeforeMarketOpenCheck = self.MARKET_OPEN_CHECK_TICKS
+        self.numWatchTables = 3
+        self.numFolioTables = 3
         # Local config
         self.localConfigFile = LocalConfig("localConfig.json")
         # Hosted config
@@ -65,8 +64,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.hostedConfigFile.initFromFile('privatesettings/stockTickerConfig.json')
         self.stockHoldings = StockHoldings()
         #self.stockreader.readFromShareScopeCSV("robstkexpt.csv")
-        configData = self.hostedConfigFile.getConfigDataFromLocation()
-        self.stockHoldings.setupFromConfigData(configData)
+        stocksDataFileContents = self.hostedConfigFile.getConfigDataFromLocation()
+        self.stockHoldings.loadFromStocksDataFileContents(stocksDataFileContents)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
         # Exchange rate getter
         self.exchangeRates = ExchangeRates()
@@ -132,7 +131,7 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         # Table(s) to handle watch list
         self.watchTableSplitter = QtWidgets.QSplitter()
-        self.watchTables = []
+        self.watchTables: list[StockTable] = []
         for tabIdx in range(self.numWatchTables):
             newTab = StockTable()
             newTab.initTable(self, self.watchTableColDefs, self.currencySign, False, "watch", self.localConfigFile)
@@ -148,7 +147,7 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         # Table(s) for portfolio stocks
         self.portfolioTableSplitter = QtWidgets.QSplitter()
-        self.portfolioTables = []
+        self.portfolioTables: list[StockTable] = []
         for tabIdx in range(self.numFolioTables):
             newTab = StockTable()
             newTab.initTable(self, self.portfolioTableColDefs, self.currencySign, tabIdx==self.numFolioTables-1, "folio", self.localConfigFile)
@@ -165,12 +164,13 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         # Populate tables
         self.populateTablesWithStocks()
-        self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
+        self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHoldings(False))
 
         # Layout for the tables
         self.mainSplitter = QtWidgets.QSplitter(Qt.Vertical)
         self.mainSplitter.addWidget(self.watchTableSplitter)
         self.mainSplitter.addWidget(self.portfolioTableSplitter)
+        self.mainSplitter.splitterMoved.connect(self.splitterMoved)
 
         # Layout for whole page
         self.layout = QtWidgets.QHBoxLayout(self)
@@ -187,7 +187,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.show()
 
     def populateTablesWithStocks(self):
-        fullStockList = self.stockHoldings.getStockHolding(False)
+        fullStockList = self.stockHoldings.getStockHoldings(False)
         # Watch tables
         watchStocks = [item for item in fullStockList if item['holding'] == 0]
         numWatchStocksPerTable = int((len(watchStocks)+len(self.watchTables)-1)/len(self.watchTables))
@@ -220,14 +220,14 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.hostedConfigFile.configFileUpdate(configData)
 
     def changeFont(self, tableName, tableFont):
-        logger.debug("Change font", tableName, tableFont)
+        logger.debug(f"changeFont {tableName} {tableFont}")
         if tableName == "watch":
             curFontStr = self.watchTables[0].getFontStr(tableFont)
         else:
             curFontStr = self.portfolioTables[0].getFontStr(tableFont)
         curQFont = QtGui.QFont()
         curQFont.fromString(curFontStr)
-        font, valid = QtWidgets.QFontDialog.getFont(curQFont)
+        valid, font = QtWidgets.QFontDialog.getFont(curQFont)
         if valid and font is not None:
             fontStr = font.toString()
             if tableName == "watch":
@@ -238,7 +238,7 @@ class RStockTicker(QtWidgets.QMainWindow):
                     tab.setFontStr(tableFont, fontStr)
 
     def closeEvent(self, event):
-        logger.debug('StockTicker: Stopping')
+        logger.debug(f"closeEvent {event}")
         self.stockValues.stop()
         self.exDivDates.stop()
         self.updateTimer.stop()
@@ -250,9 +250,9 @@ class RStockTicker(QtWidgets.QMainWindow):
         forceTableUpdate = False
         self.stocksViewLock.acquire()
         if self.stocksListChanged:
-            logger.debug("StockTicker: Stock list changed")
+            logger.debug(f"updateStockValues stock list changed")
             self.populateTablesWithStocks()
-            self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHolding(False))
+            self.exDivDates.setFromStockHoldings(self.stockHoldings.getStockHoldings(False))
             self.stocksListChanged = False
             forceTableUpdate = True
         self.stocksViewLock.release()
@@ -300,7 +300,17 @@ class RStockTicker(QtWidgets.QMainWindow):
                 r = requests.get(url)
             except:
                 logger.debug("StockTicker: Failed to send stock data to LED Panel")
-        
+
+    def resizeEvent(self, event):
+        # logger.debug(f"resizeEvent {event.size().width()} {event.size().height()}")
+        for table in self.watchTables:
+            table.resizeTableCells()
+
+    def splitterMoved(self, pos, index):
+        # logger.debug(f"splitterResizedOrMoved")
+        for table in self.watchTables:
+            table.resizeTableCells()
+
 def main():
     # Create logs folder if it doesn't exist
     try:
@@ -325,7 +335,7 @@ def main():
     logging.getLogger('').addHandler(ch)
 
     # Start the app
-    logger.debug("StockTicker: Starting")
+    logger.debug(f"StockTicker: Starting")
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'StockTickerIcon.ico')))
     stockTicker = RStockTicker()

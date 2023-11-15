@@ -6,7 +6,7 @@ import os
 import sys
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 '''
 Created on 07 Sep 2013

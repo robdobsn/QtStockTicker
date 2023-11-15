@@ -10,7 +10,7 @@ Created on 11 Nov 2017
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class ExchangeRates:
     def __init__(self):

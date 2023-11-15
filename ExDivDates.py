@@ -15,7 +15,7 @@ Updated 12 Nov 2017
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class ExDivDates():
     hourToRunAt = 4
@@ -151,9 +151,6 @@ class ExDivDates():
                     logger.debug(f"extractDataFromPage: Duplicate EPIC {exDivItems['exDivEPIC']}")
             else:
                 logger.debug(f"extractDataFromPage: skipping {exDivItems}")
-
-        # for sym, vals in exDivInfo.items():
-        #     logger.debug(vals)
 
         logger.debug(f"extractDataFromPage: Processed {len(exDivTable)} rows, got {len(exDivInfo)} symbols")
         return exDivInfo

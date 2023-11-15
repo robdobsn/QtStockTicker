@@ -15,7 +15,7 @@ Created on 11th November 2017
 @author: rob dobson
 '''
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("StockTickerLogger")
 
 class MarketDataWrapper(EWrapper):
     """
@@ -36,20 +36,24 @@ class MarketDataClient(EClient):
         EClient.__init__(self, wrapper)
 
 class PriceGetter(MarketDataWrapper, MarketDataClient):
-    _REQ_ID_PRICE_BASE = 10000000
-    _REQ_ID_DETAILS_BASE = 200000
-    _nextReqId = 1
-    _mapPriceReqIdToStockInfo = {}
-    _mapSymbolToPriceReqId = {}
-    _mapDetailsReqIdToPriceReqId = {}
-    _IB_SymbolMappings = {
-        "INDEXSP:.INX": { "symbol": "SPX", "exchange": "CBOE", "currency":"USD", "secType":"IND" },
-        "INDEXDJX:.DJI": {"symbol": "INDU", "exchange": "NYSE", "currency": "USD", "secType": "IND"},
-        # "INDEXFTSE:UKX": {"symbol": "TICK-LSE", "exchange": "LSE", "currency": "GBP", "secType": "IND"},
-        "AV-B.L": {"symbol": "AV.B", "exchange": "LSE", "currency": "GBP", "secType": "STK"},
-    }
 
     def __init__(self, ipaddress, portid, clientid, symbolChangedCallback):
+
+        self.DEBUG_IB_TICK_VALUES = False
+
+        self._REQ_ID_PRICE_BASE = 10000000
+        self._REQ_ID_DETAILS_BASE = 200000
+        self._nextReqId = 1
+        self._mapPriceReqIdToStockInfo = {}
+        self._mapSymbolToPriceReqId = {}
+        self._mapDetailsReqIdToPriceReqId = {}
+        self._IB_SymbolMappings = {
+            "INDEXSP:.INX": { "symbol": "SPX", "exchange": "CBOE", "currency":"USD", "secType":"IND" },
+            "INDEXDJX:.DJI": {"symbol": "INDU", "exchange": "NYSE", "currency": "USD", "secType": "IND"},
+            # "INDEXFTSE:UKX": {"symbol": "TICK-LSE", "exchange": "LSE", "currency": "GBP", "secType": "IND"},
+            "AV-B.L": {"symbol": "AV.B", "exchange": "LSE", "currency": "GBP", "secType": "STK"},
+        }
+        self.setTickCodes()
         self._symbolChangedCallback = symbolChangedCallback
         # Initialise both base classes
         MarketDataWrapper.__init__(self)
@@ -246,6 +250,8 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
                 stockDict["chg_percent"] = 100 * (priceChange) / last
 
     def tickPrice(self, reqId, tickType:int, price:float, attrib):
+        if self.DEBUG_IB_TICK_VALUES and tickType in self.tickCodes:
+            logger.debug(f"tick {self.tickCodes.get(tickType)[1]} ... PRICE {price} ATTRIB {attrib}")
         # Acquire lock on maps
         symbolDataChanged = None
         with self.mapsLock:
@@ -294,6 +300,8 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
             self._symbolChangedCallback(symbolDataChanged)
 
     def tickSize(self, reqId:int, tickType:int, size:int):
+        if self.DEBUG_IB_TICK_VALUES and tickType in self.tickCodes:
+            logger.debug(f"tick {self.tickCodes.get(tickType)[1]} ... SIZE {size}")
         # Acquire lock on maps
         symbolDataChanged = None
         with self.mapsLock:
@@ -318,19 +326,23 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
             self._symbolChangedCallback(symbolDataChanged)
 
     def tickString(self, reqId:int, tickType:int, value:str):
-        if tickType == 32: # ask_exch
-            pass
-        elif tickType == 33: # bid_exch
-            pass
-        elif tickType == 45: # last_timestamp
-            pass
-        elif tickType == 84: # last_exch
-            pass
-        else:
-            logger.warn(f"StockValues: Unhandled tickString {tickType} str {value}")
+        if self.DEBUG_IB_TICK_VALUES and tickType in self.tickCodes:
+            logger.debug(f"tick {self.tickCodes.get(tickType)[1]} ... VALUE {value}")
+        # if tickType == 32: # ask_exch
+        #     pass
+        # elif tickType == 33: # bid_exch
+        #     pass
+        # elif tickType == 45: # last_timestamp
+        #     pass
+        # elif tickType == 84: # last_exch
+        #     logger.debug(f"last_exch str {value}")
+        # else:
+        #     logger.warn(f"StockValues: Unhandled tickString {tickType} str {value}")
 
     def tickGeneric(self, reqId:int, tickType:int, value:float):
-        logger.warn(f"StockValues: Unhandled tickGeneric {tickType} float {value}")
+        if self.DEBUG_IB_TICK_VALUES and tickType in self.tickCodes:
+            logger.debug(f"tick {self.tickCodes.get(tickType)[1]} ... VALUE {value}")
+        # logger.warn(f"StockValues: Unhandled tickGeneric {tickType} float {value}")
 
     def tickEFP(self, reqId:int, tickType:int, basisPoints:float,
                 formattedBasisPoints:str, totalDividends:float,
@@ -370,6 +382,110 @@ class PriceGetter(MarketDataWrapper, MarketDataClient):
     def symbolChangedCallback(self, symbol):
         self._symbolChangedCallback(symbol)
 
+    def setTickCodes(self):
+        self.tickCodes = {
+            0: ["bid_size", "Bid Size", "Number of contracts or lots offered at the bid price.", "IBApi.EWrapper.tickSize", "-"],
+            1: ["bid_price", "Bid Price", "Highest priced bid for the contract.", "IBApi.EWrapper.tickPrice", "-"],
+            2: ["ask_price", "Ask Price", "Lowest price offer on the contract.", "IBApi.EWrapper.tickPrice", "-"],
+            3: ["ask_size", "Ask Size", "Number of contracts or lots offered at the ask price.", "IBApi.EWrapper.tickSize", "-"],
+            4: ["price", "Last Price", "Last price at which the contract traded (does not include some trades in RTVolume).", "IBApi.EWrapper.tickPrice", "-"],
+            5: ["last_size", "Last Size", "Number of contracts or lots traded at the last price.", "IBApi.EWrapper.tickSize", "-"],
+            6: ["high", "High", "High price for the day.", "IBApi.EWrapper.tickPrice", "-"],
+            7: ["low", "Low", "Low price for the day.", "IBApi.EWrapper.tickPrice", "-"],
+            8: ["volume", "Volume", "Trading volume for the day for the selected contract (US Stocks: multiplier 100).", "IBApi.EWrapper.tickSize", "-"],
+            9: ["close", "Close Price", "The last available closing price for the previous day. For US Equities, we use corporate action processing to get the closing price, so the close price is adjusted to reflect forward and reverse splits and cash and stock dividends.", "IBApi.EWrapper.tickPrice", "-"],
+            10: ["bid_option_comp", "Bid Option Computation", "Computed Greeks and implied volatility based on the underlying stock price and the option bid price. See Option Greeks", "IBApi.EWrapper.tickOptionComputation", "-"],
+            11: ["ask_option_comp", "Ask Option Computation", "Computed Greeks and implied volatility based on the underlying stock price and the option ask price. See Option Greeks", "IBApi.EWrapper.tickOptionComputation", "-"],
+            12: ["last_option_comp", "Last Option Computation", "Computed Greeks and implied volatility based on the underlying stock price and the option last traded price. See Option Greeks", "IBApi.EWrapper.tickOptionComputation", "-"],
+            13: ["model_option_comp", "Model Option Computation", "Computed Greeks and implied volatility based on the underlying stock price and the option model price. Correspond to greeks shown in TWS. See Option Greeks", "IBApi.EWrapper.tickOptionComputation", "-"],
+            14: ["open", "Open Tick", "Current session's opening price. Before open will refer to previous day. The official opening price requires a market data subscription to the native exchange of the instrument.", "IBApi.EWrapper.tickPrice", "-"],
+            15: ["low_13wk", "Low 13 Weeks", "Lowest price for the last 13 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            16: ["high_13wk", "High 13 Weeks", "Highest price for the last 13 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            17: ["low_26wk", "Low 26 Weeks", "Lowest price for the last 26 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            18: ["high_26wk", "High 26 Weeks", "Highest price for the last 26 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            19: ["low_52wk", "Low 52 Weeks", "Lowest price for the last 52 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            20: ["high_52wk", "High 52 Weeks", "Highest price for the last 52 weeks. For stocks only.", "IBApi.EWrapper.tickPrice", "165"],
+            21: ["avg_volume", "Average Volume", "The average daily trading volume over 90 days. Multiplier of 100. For stocks only.", "IBApi.EWrapper.tickSize", "165"],
+            22: ["open_interest", "Open Interest", "(Deprecated, not currently in use) Total number of options that are not closed.", "IBApi.EWrapper.tickSize", "-"],
+            23: ["option_hist_vol", "Option Historical Volatility", "The 30-day historical volatility (currently for stocks).", "IBApi.EWrapper.tickGeneric", "104"],
+            24: ["option_imp_vol", "Option Implied Volatility", "A prediction of how volatile an underlying will be in the future. The IB 30-day volatility is the at-market volatility estimated for a maturity thirty calendar days forward of the current trading day, and is based on option prices from two consecutive expiration months.", "IBApi.EWrapper.tickGeneric", "106"],
+            25: ["option_bid_exch", "Option Bid Exchange", "Not Used.", "IBApi.EWrapper.tickString", "-"],
+            26: ["option_ask_exch", "Option Ask Exchange", "Not Used.", "IBApi.EWrapper.tickString", "-"],
+            27: ["option_call_open_int", "Option Call Open Interest", "Call option open interest.", "IBApi.EWrapper.tickSize", "101"],
+            28: ["option_put_open_int", "Option Put Open Interest", "Put option open interest.", "IBApi.EWrapper.tickSize", "101"],
+            29: ["option_call_volume", "Option Call Volume", "Call option volume for the trading day.", "IBApi.EWrapper.tickSize", "100"],
+            30: ["option_put_volume", "Option Put Volume", "Put option volume for the trading day.", "IBApi.EWrapper.tickSize", "100"],
+            31: ["index_future_premium", "Index Future Premium", "The number of points that the index is over the cash index.", "IBApi.EWrapper.tickGeneric", "162"],
+            32: ["bid_exch", "Bid Exchange", "For stock and options, identifies the exchange(s) posting the bid price. See Component Exchanges", "IBApi.EWrapper.tickString", "-"],
+            33: ["ask_exch", "Ask Exchange", "For stock and options, identifies the exchange(s) posting the ask price. See Component Exchanges", "IBApi.EWrapper.tickString", "-"],
+            34: ["auction_volume", "Auction Volume", "The number of shares that would trade if no new orders were received and the auction were held now.", "IBApi.EWrapper.tickSize", "225"],
+            35: ["auction_price", "Auction Price", "The price at which the auction would occur if no new orders were received and the auction were held now- the indicative price for the auction. Typically received after Auction imbalance (tick type 36)", "IBApi.EWrapper.tickPrice", "225"],
+            36: ["auction_imbalance", "Auction Imbalance", "The number of unmatched shares for the next auction; returns how many more shares are on one side of the auction than the other. Typically received after Auction Volume", "IBApi.EWrapper.tickSize", "225"],
+            37: ["mark_price", "Mark Price", "The mark price is equal to the midpoint of the best bid and ask prices. It is calculated by TWS/IBKR and is not tradable.", "IBApi.EWrapper.tickPrice", "232"],
+            38: ["bid_efp_computation", "Bid EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            39: ["ask_efp_computation", "Ask EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            40: ["last_efp_computation", "Last EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            41: ["open_efp_computation", "Open EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            42: ["high_efp_computation", "High EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            43: ["low_efp_computation", "Low EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            44: ["close_efp_computation", "Close EFP Computation", "The computed implied exchange for a stock or index future price. Used in conjunction with the EFP (Exchange for Physical) field.", "IBApi.EWrapper.tickEFP", "-"],
+            45: ["last_timestamp", "Last Timestamp", "The time of the last trade. For US stocks, a millisecond timestamp is used. For non-US stocks, an IB system time timestamp is used.", "IBApi.EWrapper.tickString", "-"],
+            46: ["shortable", "Shortable", "Indicates if the contract can currently be shorted. The availability of shortable shares is indicative only and is not guaranteed. For more information on shortable shares, see the Shortable Shares Availability section of the TWS Users' Guide.", "IBApi.EWrapper.tickString", "236"],
+            47: ["fundamental_ratios", "Fundamental Ratios", "Fundamental ratios.", "IBApi.EWrapper.tickString", "-"],
+            48: ["rt_volume", "RTVolume", "Real-time volume for the day for the selected contract (US Stocks: multiplier 100).", "IBApi.EWrapper.tickSize", "233"],
+            49: ["halted", "Halted", "Indicates if the contract is halted", "IBApi.EWrapper.tickString", "-"],
+            50: ["bid_yield", "Bid Yield", "Implied yield of the bond if it is purchased at the current bid", "IBApi.EWrapper.tickString", "-"],
+            51: ["ask_yield", "Ask Yield", "Implied yield of the bond if it is purchased at the current ask", "IBApi.EWrapper.tickString", "-"],
+            52: ["last_yield", "Last Yield", "Implied yield of the bond if it is purchased at the last price", "IBApi.EWrapper.tickString", "-"],
+            53: ["cust_option_computation", "Cust Option Computation", "Custom option computation.", "IBApi.EWrapper.tickOptionComputation", "-"],
+            54: ["trade_count", "Trade Count", "Trade count for the day", "IBApi.EWrapper.tickGeneric", "293"],
+            55: ["trade_rate", "Trade Count Per Minute", "Trade rate per minute", "IBApi.EWrapper.tickGeneric", "294"],
+            56: ["volume_rate", "Volume Per Minute", "Volume per minute", "IBApi.EWrapper.tickGeneric", "295"],
+            57: ["last_rth_trade", "Last RTH Trade", "Last Regular Trading Hours trade price.", "IBApi.EWrapper.tickPrice", "318"],
+            58: ["rt_historical_vol", "Realtime Historical Volatility", "30-day real time historical volatility", "IBApi.EWrapper.tickGeneric", "411"],
+            59: ["ib_dividends", "IB Dividends", "Contract's dividends. See IB Dividends", "IBApi.EWrapper.tickGeneric", "456"],
+            60: ["bond_factor_multiplier", "Bond Factor Multiplier", "The bond factor is a number that indicates the ratio of the current bond principal to the original principal", "IBApi.EWrapper.tickGeneric", "460"],
+            61: ["regulatory_imbalance", "Regulatory Imbalance", "The imbalance that is used to determine which at-the-open or at-the-close orders can be entered following the publishing of the regulatory imbalance", "IBApi.EWrapper.tickSize", "225"],
+            62: ["news_tick", "News Tick", "Contract's news feed", "IBApi.EWrapper.tickString", "292"],
+            63: ["short_term_volume_3min", "Short Term Volume 3 min", "The past three minutes volume. Interpolation may be applied. For stocks only.", "IBApi.EWrapper.tickSize", "595"],
+            64: ["short_term_volume_5min", "Short Term Volume 5 min", "The past five minutes volume. Interpolation may be applied. For stocks only.", "IBApi.EWrapper.tickSize", "595"],
+            65: ["short_term_volume_10min", "Short Term Volume 10 min", "The past ten minutes volume. Interpolation may be applied. For stocks only.", "IBApi.EWrapper.tickSize", "595"],
+            66: ["delayed_bid", "Delayed Bid", "Delayed bid price", "IBApi.EWrapper.tickPrice", "-"],
+            67: ["delayed_ask", "Delayed Ask", "Delayed ask price", "IBApi.EWrapper.tickPrice", "-"],
+            68: ["delayed_last", "Delayed Last", "Delayed last price", "IBApi.EWrapper.tickPrice", "-"],
+            69: ["delayed_bid_size", "Delayed Bid Size", "Delayed bid size", "IBApi.EWrapper.tickSize", "-"],
+            70: ["delayed_ask_size", "Delayed Ask Size", "Delayed ask size", "IBApi.EWrapper.tickSize", "-"],
+            71: ["delayed_last_size", "Delayed Last Size", "Delayed last size", "IBApi.EWrapper.tickSize", "-"],
+            72: ["delayed_high", "Delayed High", "Delayed high price of the day", "IBApi.EWrapper.tickPrice", "-"],
+            73: ["delayed_low", "Delayed Low", "Delayed low price of the day", "IBApi.EWrapper.tickPrice", "-"],
+            74: ["delayed_volume", "Delayed Volume", "Delayed traded volume of the day", "IBApi.EWrapper.tickSize", "-"],
+            75: ["delayed_close", "Delayed Close", "Delayed close price", "IBApi.EWrapper.tickPrice", "-"],
+            76: ["delayed_open", "Delayed Open", "Delayed open price", "IBApi.EWrapper.tickPrice", "-"],
+            77: ["rt_trd_volume", "RT Trd Volume", "Real-time traded volume for the day for the selected contract (US Stocks: multiplier 100).", "IBApi.EWrapper.tickSize", "-"],
+            78: ["creditman_mark_price", "Creditman Mark Price", "Creditman mark price", "IBApi.EWrapper.tickPrice", "-"],
+            79: ["creditman_slow_mark_price", "Creditman Slow Mark Price", "Creditman slow mark price", "IBApi.EWrapper.tickPrice", "-"],
+            80: ["delayed_bid_opt_comp", "Delayed Bid Option Computation", "Delayed bid option computation", "IBApi.EWrapper.tickOptionComputation", "-"],
+            81: ["delayed_ask_opt_comp", "Delayed Ask Option Computation", "Delayed ask option computation", "IBApi.EWrapper.tickOptionComputation", "-"],
+            82: ["delayed_last_opt_comp", "Delayed Last Option Computation", "Delayed last option computation", "IBApi.EWrapper.tickOptionComputation", "-"],
+            83: ["delayed_model_opt_comp", "Delayed Model Option Computation", "Delayed model option computation", "IBApi.EWrapper.tickOptionComputation", "-"],
+            84: ["last_exchange", "Last Exchange", "Exchange where last trade was executed", "IBApi.EWrapper.tickString", "-"],
+            85: ["last_reg_time", "Last Regulatory Time", "Timestamp (in Unix ms time) of last trade returned with regulatory snapshot", "IBApi.EWrapper.tickString", "-"],
+            86: ["futures_open_interest", "Futures Open Interest", "Total number of outstanding futures contracts (TWS v965+). *HSI open interest requested with generic tick 101", "IBApi.EWrapper.tickSize", "588"],
+            87: ["avg_option_volume", "Average Option Volume", "Average volume of the corresponding option contracts(TWS Build 970+ is required)", "IBApi.EWrapper.tickSize", "105"],
+            88: ["delayed_last_timestamp", "Delayed Last Timestamp", "Delayed time of the last trade (in UNIX time) (TWS Build 970+ is required)", "IBApi.EWrapper.tickString", "-"],
+            89: ["shortable_shares", "Shortable Shares", "Number of shares available to short (TWS Build 974+ is required)", "IBApi.EWrapper.tickSize", "236"],
+            92: ["etf_nav_close", "ETF Nav Close", "Today's closing price of ETF's Net Asset Value (NAV). Calculation is based on prices of ETF's underlying securities.", "IBApi.EWrapper.tickPrice", "578"],
+            93: ["etf_nav_prior_close", "ETF Nav Prior Close", "Yesterday's closing price of ETF's Net Asset Value (NAV). Calculation is based on prices of ETF's underlying securities.", "IBApi.EWrapper.tickPrice", "578"],
+            94: ["etf_nav_bid", "ETF Nav Bid", "The bid price of ETF's Net Asset Value (NAV). Calculation is based on prices of ETF's underlying securities.", "IBApi.EWrapper.tickPrice", "576"],
+            95: ["etf_nav_ask", "ETF Nav Ask", "The ask price of ETF's Net Asset Value (NAV). Calculation is based on prices of ETF's underlying securities.", "IBApi.EWrapper.tickPrice", "576"],
+            96: ["etf_nav_last", "ETF Nav Last", "The last price of Net Asset Value (NAV). For ETFs: Calculation is based on prices of ETF's underlying securities. For NextShares: Value is provided by NASDAQ", "IBApi.EWrapper.tickPrice", "577"],
+            97: ["etf_nav_frozen_last", "ETF Nav Frozen Last", "ETF Nav Last for Frozen data", "IBApi.EWrapper.tickPrice", "623"],
+            98: ["etf_nav_high", "ETF Nav High", "The high price of ETF's Net Asset Value (NAV)", "IBApi.EWrapper.tickPrice", "614"],
+            99: ["etf_nav_low", "ETF Nav Low", "The low price of ETF's Net Asset Value (NAV)", "IBApi.EWrapper.tickPrice", "614"],
+            101: ["est_ipo_midpoint", "Estimated IPO - Midpoint", "Midpoint is calculated based on IPO price range", "IBApi.EWrapper.tickGeneric", "586"],
+            102: ["final_ipo_price", "Final IPO Price", "Final price for IPO", "IBApi.EWrapper.tickGeneric", "586"],
+        }
+
 class StockValues_InteractiveBrokers:
     bOnlyUpdateWhileMarketOpen = False
     
@@ -390,7 +506,6 @@ class StockValues_InteractiveBrokers:
     def symbolDataChanged(self, symbol):
         with self._lockOnStockChangeList:
             self._dictOfStocksChangedSinceUIUpdate[symbol] = True
-            # logger.debug("UpdateTo", symbol, "len", len(self._dictOfStocksChangedSinceUIUpdate))
 
     def getMapOfStocksChangedSinceUIUpdated(self):
         changedStockDict = {}

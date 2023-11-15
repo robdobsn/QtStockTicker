@@ -51,7 +51,6 @@ class PickStockDialog(QtWidgets.QDialog):
         rowIdx = 0
         for stk in self.stockSymbolList.getStockList():
             #self.table.setRowHeight(rowIdx,20)
-            # logger.debug (stk[0], stk[1])
             it1 = QtWidgets.QTableWidgetItem(stk[1])
             it1.setFlags(it1.flags() ^ QtCore.Qt.ItemIsEditable)
             it1.setFont(dialogFont)
