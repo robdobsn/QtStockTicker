@@ -2,6 +2,7 @@ import logging
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtWidgets import QTableWidget
 from PickStockDialog import PickStockDialog
+from ResourcePath import getResourcePath
 
 '''
 Created on 04 Oct 2013
@@ -72,7 +73,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         hLayout1.addWidget(self.table)
         vLayoutButtons = QtWidgets.QVBoxLayout()
         
-        pxa1 = QtGui.QPixmap('Add.png')
+        pxa1 = QtGui.QPixmap(getResourcePath('Add.png'))
         ica1 = QtGui.QIcon(pxa1)
         bta1 = QtWidgets.QPushButton(ica1, "", self)
         bta1.setIconSize(QtCore.QSize(32,32))
@@ -80,7 +81,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         bta1.clicked.connect(self.addRowToStocks)
         vLayoutButtons.addWidget(bta1)
 
-        pxa2 = QtGui.QPixmap('Up_Arrow.png')
+        pxa2 = QtGui.QPixmap(getResourcePath('Up_Arrow.png'))
         ica2 = QtGui.QIcon(pxa2)
         bta2 = QtWidgets.QPushButton(ica2, "", self)
         bta2.setIconSize(QtCore.QSize(32,32))
@@ -88,7 +89,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         bta2.clicked.connect(self.moveStockUp)
         vLayoutButtons.addWidget(bta2)
 
-        pxa3 = QtGui.QPixmap('Down_Arrow.png')
+        pxa3 = QtGui.QPixmap(getResourcePath('Down_Arrow.png'))
         ica3 = QtGui.QIcon(pxa3)
         bta3 = QtWidgets.QPushButton(ica3, "", self)
         bta3.setIconSize(QtCore.QSize(32,32))
@@ -131,7 +132,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         #self.table.setRowHeight(rowIdx,20)
         it1 = QtWidgets.QTableWidgetItem(symbolStr)
         table.setItem(rowIdx, 0, it1)
-        ic2 = QtGui.QIcon('edit.png')
+        ic2 = QtGui.QIcon(getResourcePath('edit.png'))
         bt2 = QtWidgets.QPushButton(ic2, "", self.table)
         bt2.setFlat(True)
         bt2.clicked.connect(self.pickStockClick)
@@ -151,7 +152,7 @@ class StockSettingsDialog(QtWidgets.QDialog):
         it7 = QtWidgets.QTableWidgetItem(exDivPayDateStr)
         it7.setTextAlignment(QtCore.Qt.AlignRight)
         table.setItem(rowIdx, 6, it7)
-        ic5 = QtGui.QIcon('exit.png')
+        ic5 = QtGui.QIcon(getResourcePath('exit.png'))
         bt5 = QtWidgets.QPushButton(ic5, "", self.table)
         bt5.setFlat(True)
         bt5.clicked.connect(self.deleteStockClick)

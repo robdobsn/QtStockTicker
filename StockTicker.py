@@ -14,12 +14,13 @@ from StockHoldings import StockHoldings
 from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
 from StockSettingsDialog import StockSettingsDialog
 from StockSymbolList import StockSymbolList
-from HostedConfigFile import HostedConfigFile
 from ExDivDates import ExDivDates
 from StockTable import StockTable
 from decimal import Decimal
 from ExchangeRates import ExchangeRates
 from LocalConfig import LocalConfig
+from HostedConfigFile import HostedConfigFile
+from ResourcePath import getResourcePath
 
 '''
 Created on 4 Sep 2013
@@ -57,26 +58,34 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.ticksBeforeMarketOpenCheck = self.MARKET_OPEN_CHECK_TICKS
         self.numWatchTables = 3
         self.numFolioTables = 3
+        self.stockHoldings = StockHoldings()
+
         # Local config
         self.localConfigFile = LocalConfig("localConfig.json")
+
         # Hosted config
         self.hostedConfigFile = HostedConfigFile()
         self.hostedConfigFile.initFromFile('privatesettings/stockTickerConfig.json')
-        self.stockHoldings = StockHoldings()
         #self.stockreader.readFromShareScopeCSV("robstkexpt.csv")
         stocksDataFileContents = self.hostedConfigFile.getConfigDataFromLocation()
+
+        # Load stocks from file
         self.stockHoldings.loadFromStocksDataFileContents(stocksDataFileContents)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
+
         # Exchange rate getter
         self.exchangeRates = ExchangeRates()
         self.exchangeRates.start()
+
         # Stock values getter
         self.stockValues = StockValues_InteractiveBrokers()
         self.stockValues.setStocks(heldStockSymbols)
         self.stockValues.run()
+
         # Ex-dividend dates getter
         self.exDivDates = ExDivDates(self.exchangeRates)
-        self.exDivDates.run()
+        # self.exDivDates.run()
+
         # Update for the display
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
@@ -112,7 +121,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.initUI()
 
     def getFontAction(self, title, connectParam1, connectParam2):
-        fontAction = QtGui.QAction(QtGui.QIcon('font.png'), '&' + title, self)
+        fontAction = QtGui.QAction(QtGui.QIcon(getResourcePath('font.png')), '&' + title, self)
         fontAction.setStatusTip(title)
         fontAction.triggered.connect(lambda: self.changeFont(connectParam1, connectParam2))
         return fontAction
@@ -120,12 +129,12 @@ class RStockTicker(QtWidgets.QMainWindow):
     def initUI(self):
 
         # Edit menu action
-        editAction = QtGui.QAction(QtGui.QIcon('edit.png'), '&Edit', self)
+        editAction = QtGui.QAction(QtGui.QIcon(getResourcePath('edit.png')), '&Edit', self)
         editAction.setStatusTip('Edit shares')
         editAction.triggered.connect(self.editStocksList)
 
         # Exit menu action
-        exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
+        exitAction = QtGui.QAction(QtGui.QIcon(getResourcePath('exit.png')), '&Exit', self)
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.quitApp)
 
@@ -217,7 +226,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stocksListChanged = True
         self.stocksViewLock.release()
         configData = self.stockHoldings.getConfigData()
-        self.hostedConfigFile.configFileUpdate(configData)
+        if self.hostedConfigFile is not None:
+            self.hostedConfigFile.configFileUpdate(configData)
 
     def changeFont(self, tableName, tableFont):
         logger.debug(f"changeFont {tableName} {tableFont}")
@@ -337,7 +347,7 @@ def main():
     # Start the app
     logger.debug(f"StockTicker: Starting")
     app = QtWidgets.QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'StockTickerIcon.ico')))
+    app.setWindowIcon(QtGui.QIcon(getResourcePath('StockTickerIcon.ico')))
     stockTicker = RStockTicker()
     curExitCode = app.exec()
     sys.exit(curExitCode)

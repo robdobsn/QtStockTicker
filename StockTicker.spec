@@ -5,7 +5,16 @@ a = Analysis(
     ['StockTicker.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('res/Add.png', 'res'),
+        ('res/Down_Arrow.png', 'res'),
+        ('res/edit.png', 'res'),
+        ('res/exit.png', 'res'),
+        ('res/font.png', 'res'),
+        ('res/StockTickerIcon.ico', 'res'),
+        ('res/StockTickerIcon.png', 'res'),
+        ('res/Up_Arrow.png', 'res')
+        ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -10,6 +10,8 @@ Created on 11 Nov 2017
 @author: rob dobson
 '''
 
+ENABLE_EXCHANGE_RATES = False
+
 logger = logging.getLogger("StockTickerLogger")
 
 class ExchangeRates:
@@ -17,6 +19,7 @@ class ExchangeRates:
         self.running = False
         self.exchgRateData = {}
         self.lock = threading.Lock()
+        self.FIXER_IO_API_KEY = ""
 
     def getExRateDataBaseGBP(self):
         dat = None
@@ -33,9 +36,21 @@ class ExchangeRates:
         return dat
 
     def start(self):
-        self.running = True
-        self.t = threading.Thread(target=self.exRateUpdateThread)
-        self.t.start()
+        # Read the FIXER_IO_API_KEY from a config.ini file
+        self.FIXER_IO_API_KEY = ""
+        try:
+            with open("config.ini", "r") as f:
+                for line in f:
+                    if "FIXER_IO_API_KEY" in line:
+                        self.FIXER_IO_API_KEY = line.split("=")[1].strip()
+                        break
+        except:
+            logger.error("ExchangeRates: Failed to read FIXER_IO_API_KEY from config.ini")
+        # Start the thread
+        if ENABLE_EXCHANGE_RATES:
+            self.running = True
+            self.t = threading.Thread(target=self.exRateUpdateThread)
+            self.t.start()
 
     def stop(self):
         self.running = False
@@ -45,7 +60,7 @@ class ExchangeRates:
         while self.running:
             # Get the exchange rates
             try:
-                url = 'https://api.fixer.io/latest?base=GBP'
+                url = 'http://data.fixer.io/api/latest?base=GBP&access_key=' + self.FIXER_IO_API_KEY
                 logger.debug(f"ExchangeRates: Requesting {url}")
                 r = requests.get(url)
                 exRtData = r.json()
@@ -56,7 +71,7 @@ class ExchangeRates:
                 logger.warn("ExchangeRates: get failed")
 
             # Wait for next time
-            delayTime = 3600
+            delayTime = 36000
             for delayCount in range(delayTime):
                 if not self.running:
                     break
