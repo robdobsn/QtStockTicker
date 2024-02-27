@@ -15,7 +15,9 @@ a = Analysis(
         ('res/StockTickerIcon.png', 'res'),
         ('res/Up_Arrow.png', 'res')
         ],
-    hiddenimports=[],
+    hiddenimports=[
+        'requests'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

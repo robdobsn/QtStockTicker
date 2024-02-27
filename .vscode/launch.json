@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "StockTicker",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "StockTicker.py",
             "console": "integratedTerminal",
