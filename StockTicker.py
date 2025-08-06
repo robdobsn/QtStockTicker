@@ -184,9 +184,10 @@ class RStockTicker(QtWidgets.QMainWindow):
         # Layout for whole page
         self.layout = QtWidgets.QHBoxLayout(self)
         self.layout.addWidget(self.mainSplitter)
-        self.setLayout(self.layout)
+        # Remove this line - QMainWindow doesn't use setLayout()
+        # self.setLayout(self.layout)
 
-        # Add main splitter
+        # Add main splitter - this is the correct way for QMainWindow
         self.setCentralWidget(self.mainSplitter)
 
         # Window title
