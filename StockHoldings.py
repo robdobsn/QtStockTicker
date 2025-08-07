@@ -32,6 +32,8 @@ class StockHoldings:
                         stock["exDivAmount"] = 0
                     if not "paymentDate" in stock:
                         stock["paymentDate"] = ""
+                    if not "stock_provider" in stock:
+                        stock["stock_provider"] = ""
 
     def getStockSymbols(self) -> list[str]:
         return [dct['symbol'] for dct in self.stockHoldingsList]

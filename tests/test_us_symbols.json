@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "stocks": [
+        {
+            "symbol": "AAPL",
+            "quantity": 100
+        },
+        {
+            "symbol": "MSFT", 
+            "quantity": 50
+        },
+        {
+            "symbol": "GOOGL",
+            "quantity": 25
+        },
+        {
+            "symbol": "AMZN",
+            "quantity": 10
+        },
+        {
+            "symbol": "TSLA",
+            "quantity": 20
+        }
+    ]
+}

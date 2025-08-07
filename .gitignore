@@ -223,10 +223,23 @@ pip-log.txt
 #############
 ## Project specific
 #############
+privatesettings/
 private*
 stocklist.json
 exdivinfo.json
 localConfig.json
+logs/
+*.log
+
+# Sensitive configuration files
+config.ini
+stockTickerConfig.json
+
+# API keys and credentials
+*api*key*
+*secret*
+*token*
+*credential*
 
 .idea/misc.xml
 .idea/QtStockTicker.iml

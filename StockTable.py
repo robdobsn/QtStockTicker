@@ -217,8 +217,10 @@ class StockTable(QtWidgets.QTableWidget):
             symbolName = uiRowDef['sym']
             stkValues = stockValues.getStockData(symbolName)
             if stkValues is not None:
+                logger.debug(f"StockTable updateTable: Processing {symbolName} with price={stkValues.get('price', 'N/A')}")
                 exDivDates.addToStockInfo(symbolName, stkValues)
                 if not "price" in stkValues:
+                    logger.debug(f"StockTable updateTable: No price found for {symbolName}, skipping")
                     continue
                 # Get information on stock
                 stkHolding = self.ToDecimal(uiRowDef["hld"])

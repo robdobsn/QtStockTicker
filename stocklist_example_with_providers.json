@@ -1,0 +1,48 @@
+{
+    "StockInfo": [
+        {
+            "symbol": "AAPL",
+            "holding": 100.0,
+            "cost": 150.0,
+            "stock_provider": "yahoo_api",
+            "exDivDate": "",
+            "exDivAmount": 0.0,
+            "paymentDate": ""
+        },
+        {
+            "symbol": "MSFT",
+            "holding": 50.0,
+            "cost": 300.0,
+            "stock_provider": "interactive_brokers",
+            "exDivDate": "",
+            "exDivAmount": 0.0,
+            "paymentDate": ""
+        },
+        {
+            "symbol": "GOOGL",
+            "holding": 25.0,
+            "cost": 2000.0,
+            "exDivDate": "",
+            "exDivAmount": 0.0,
+            "paymentDate": ""
+        },
+        {
+            "symbol": "TSLA",
+            "holding": 30.0,
+            "cost": 800.0,
+            "stock_provider": "google",
+            "exDivDate": "",
+            "exDivAmount": 0.0,
+            "paymentDate": ""
+        },
+        {
+            "symbol": "AMZN",
+            "holding": 10.0,
+            "cost": 3200.0,
+            "stock_provider": "",
+            "exDivDate": "",
+            "exDivAmount": 0.0,
+            "paymentDate": ""
+        }
+    ]
+}

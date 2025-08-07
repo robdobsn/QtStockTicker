@@ -39,13 +39,13 @@ class ExchangeRates:
         # Read the FIXER_IO_API_KEY from a config.ini file
         self.FIXER_IO_API_KEY = ""
         try:
-            with open("config.ini", "r") as f:
+            with open("privatesettings/config.ini", "r") as f:
                 for line in f:
                     if "FIXER_IO_API_KEY" in line:
                         self.FIXER_IO_API_KEY = line.split("=")[1].strip()
                         break
         except:
-            logger.error("ExchangeRates: Failed to read FIXER_IO_API_KEY from config.ini")
+            logger.error("ExchangeRates: Failed to read FIXER_IO_API_KEY from privatesettings/config.ini")
         # Start the thread
         if ENABLE_EXCHANGE_RATES:
             self.running = True

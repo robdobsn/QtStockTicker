@@ -23,8 +23,8 @@ class StockValues_Google:
     pendingTickerlist = None
     fullTickerList = []
 
-    def __init__(self, symbolChangedCallback):
-        self._symbolChangedCallback = symbolChangedCallback
+    def __init__(self, callback=None):
+        self._symbolChangedCallback = callback
         self.highFreqSymList = []
         self.running = False
         self.openhour = 8
@@ -37,9 +37,16 @@ class StockValues_Google:
         self.lock = threading.Lock()
         self.status = ""
         self.listUpdateLock = threading.Lock()
+        
+        # State tracking for provider interface compatibility
+        self._dictOfStocksChangedSinceUIUpdate = {}
+        self._lockOnStockChangeList = threading.Lock()
+        
+        logger.info("StockValues_Google initialized")
         self.start()
 
     def addStock(self, symbol):
+        """Add a single stock symbol (legacy method for compatibility)"""
         logger.debug(f"StockValues_Google: Adding symbol {symbol} to be got from Google")
         self.listUpdateLock.acquire()
         curList = []
@@ -55,6 +62,12 @@ class StockValues_Google:
         self.listUpdateLock.release()
 
     def setAllStocks(self, stockList):
+        """Set all stocks (legacy method, calls setStocks)"""
+        self.setStocks(stockList)
+
+    def setStocks(self, stockList):
+        """Set list of symbols to monitor"""
+        logger.info(f"StockValues_Google setStocks: {len(stockList)} symbols: {stockList}")
         curList = []
         for sym in stockList:
             curList.append(sym)
@@ -62,29 +75,80 @@ class StockValues_Google:
         self.fullTickerList = curList
         self.listUpdateLock.release()
 
+    def setCallback(self, callback):
+        """Set the callback function to be called when stock data changes"""
+        self._symbolChangedCallback = callback
+        logger.debug(f"StockValues_Google callback set to {callback}")
+
+    def symbolDataChanged(self, symbol):
+        """Called when a symbol's data changes"""
+        with self._lockOnStockChangeList:
+            self._dictOfStocksChangedSinceUIUpdate[symbol] = True
+        
+        # Call the callback if one has been set (for StockProviderManager)
+        if self._symbolChangedCallback:
+            logger.debug(f"StockValues_Google symbolDataChanged calling callback for {symbol}")
+            self._symbolChangedCallback(symbol)
+
+    def getMapOfStocksChangedSinceUIUpdated(self):
+        """Get symbols that have changed since last UI update"""
+        changedStockDict = {}
+        with self._lockOnStockChangeList:
+            changedStockDict = copy.copy(self._dictOfStocksChangedSinceUIUpdate)
+            self._dictOfStocksChangedSinceUIUpdate = {}
+        return changedStockDict
+
     def checkAndSetUIUpdateDataChange(self):
         tmpDataChange = self.dataUpdatedSinceLastUIUpdate
         self.dataUpdatedSinceLastUIUpdate = False
         return tmpDataChange
 
-    def getStockInfoData(self, sym):
+    def getStockData(self, sym):
+        """Get current stock data for a symbol (primary method used by StockProviderManager)"""
         self.lock.acquire()
         dat = None
         if sym in self.stockData:
             dat = copy.copy(self.stockData[sym])
         self.lock.release()
         return dat
+
+    def getStockInfoData(self, sym):
+        """Get current stock data for a symbol (alternative method name for compatibility)"""
+        return self.getStockData(sym)
     
     def setOnlyUpdateWhenMarketOpen(self, onlyWhenOpen):
+        """Set whether to only update when market is open"""
         self.bOnlyUpdateWhileMarketOpen = onlyWhenOpen
+        logger.debug(f"StockValues_Google setOnlyUpdateWhenMarketOpen: {onlyWhenOpen}")
+        
+    def getMarketOpenStatus(self):
+        """Get market open/closed status"""
+        try:
+            nowInUk = datetime.datetime.now(pytz.timezone('GB'))
+            open_time = nowInUk.replace(hour=self.openhour, minute=self.openmin, second=0)
+            close_time = nowInUk.replace(hour=self.closehour, minute=self.closemin, second=0)
+            open_day = nowInUk.weekday() in self.tradingdow
+            marketOpen = (nowInUk > open_time) and (nowInUk < close_time) and open_day
+            return "Market Open" if marketOpen else "Market Closed"
+        except Exception as e:
+            logger.error(f"StockValues_Google getMarketOpenStatus error: {e}")
+            return "Market Status Unknown"
+
+    def run(self):
+        """Start the provider (called by start())"""
+        pass  # Already started in constructor
         
     def start(self):
+        """Start the provider"""
+        logger.info("StockValues_Google started")
         self.running = True
         self.t = threading.Thread(target=self.stockUpdateThread)
         self.t.start()        
 
     def stop(self):
+        """Stop the provider"""
         self.running = False
+        logger.info("StockValues_Google stopped")
         
     def stockUpdateThread(self):
         firstpass = True
@@ -158,7 +222,8 @@ class StockValues_Google:
                         for k,v in values.items():
                             if not (ticker in self.stockData and k in self.stockData[ticker] and self.stockData[ticker][k] == v):
                                 self.dataUpdatedSinceLastUIUpdate = True
-                                self._symbolChangedCallback(ticker)
+                                # Use the standardized symbolDataChanged method
+                                self.symbolDataChanged(ticker)
                                 break
                         self.stockData[ticker] = values
                         self.stockData[ticker]['failCount'] = 0

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class StockHolding:
@@ -8,6 +9,7 @@ class StockHolding:
     exDivDate: str
     exDivAmount: float
     paymentDate: str
+    stock_provider: Optional[str] = None  # Optional field for specifying preferred provider
 
 @dataclass
 class StocksDataFileContents:

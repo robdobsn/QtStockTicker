@@ -1,0 +1,16 @@
+{
+	"FileVersion": 0,
+	"ConfigLocations":
+	[
+	  {
+	    "hostURLForGet": "//YOUR_SERVER/YOUR_PATH", "filePathForGet": "/Config/stocklist.json", "getUsing": "local",
+        "hostURLForPut": "//YOUR_SERVER/YOUR_PATH", "filePathForPut": "/Config/stocklist.json", "putUsing": "local",
+        "userName": "", "passWord" : "", "sourceName": "server"
+	  },
+	  {
+	    "hostURLForGet": "", "filePathForGet": "stocklist.json", "getUsing": "local",
+        "hostURLForPut": "", "filePathForPut": "stocklist.json", "putUsing": "local",
+        "userName": "", "passWord" : "", "sourceName": "local"
+	  }
+	]
+}

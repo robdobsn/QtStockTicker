@@ -11,7 +11,6 @@ import time
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QTimer, Qt
 from StockHoldings import StockHoldings
-from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
 from StockSettingsDialog import StockSettingsDialog
 from StockSymbolList import StockSymbolList
 from ExDivDates import ExDivDates
@@ -21,6 +20,7 @@ from ExchangeRates import ExchangeRates
 from LocalConfig import LocalConfig
 from HostedConfigFile import HostedConfigFile
 from ResourcePath import getResourcePath
+from StockProviderManager import StockProviderManager
 
 '''
 Created on 4 Sep 2013
@@ -77,10 +77,12 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.exchangeRates = ExchangeRates()
         self.exchangeRates.start()
 
-        # Stock values getter
-        self.stockValues = StockValues_InteractiveBrokers()
+        # Stock values getter - use provider manager with intelligent fallback
+        self.stockValues = StockProviderManager(self.symbolDataChanged, self.localConfigFile)
+        logger.info("Using StockProviderManager with intelligent fallback")
+
         self.stockValues.setStocks(heldStockSymbols)
-        self.stockValues.run()
+        self.stockValues.start()
 
         # Ex-dividend dates getter
         self.exDivDates = ExDivDates(self.exchangeRates)
@@ -180,12 +182,6 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.mainSplitter.addWidget(self.watchTableSplitter)
         self.mainSplitter.addWidget(self.portfolioTableSplitter)
         self.mainSplitter.splitterMoved.connect(self.splitterMoved)
-
-        # Layout for whole page
-        self.layout = QtWidgets.QHBoxLayout(self)
-        self.layout.addWidget(self.mainSplitter)
-        # Remove this line - QMainWindow doesn't use setLayout()
-        # self.setLayout(self.layout)
 
         # Add main splitter - this is the correct way for QMainWindow
         self.setCentralWidget(self.mainSplitter)
@@ -290,17 +286,20 @@ class RStockTicker(QtWidgets.QMainWindow):
         changedStockDict = None
         if not forceTableUpdate:
             changedStockDict = self.stockValues.getMapOfStocksChangedSinceUIUpdated()
-            if (changedStockDict) == 0:
+            if len(changedStockDict) == 0:
                 # logger.debug(f"No Update Required {changedStockDict}")
                 return
             # else:
             #     logger.debug(f"Doing update {changedStockDict}")
 
         # Update the tables
-        for table in self.watchTables:
+        logger.debug(f"Updating tables with changedStockDict: {changedStockDict}")
+        for i, table in enumerate(self.watchTables):
+            logger.debug(f"Updating watchTable {i}")
             table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [Decimal("0"),Decimal("0"),0,0])
         tableTotals = [Decimal("0"),Decimal("0"),0,0]
-        for table in self.portfolioTables:
+        for i, table in enumerate(self.portfolioTables):
+            logger.debug(f"Updating portfolioTable {i}")
             tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals)
             table.SetTotals(tableTotals)
 
@@ -321,6 +320,12 @@ class RStockTicker(QtWidgets.QMainWindow):
         # logger.debug(f"splitterResizedOrMoved")
         for table in self.watchTables:
             table.resizeTableCells()
+
+    def symbolDataChanged(self, symbol):
+        """Callback for when stock data changes"""
+        logger.debug(f"symbolDataChanged called for symbol: {symbol}")
+        # This callback is triggered when stock data has been updated
+        # The actual UI update is handled by the timer-based updateStockValues method
 
 def main():
     # Create logs folder if it doesn't exist
