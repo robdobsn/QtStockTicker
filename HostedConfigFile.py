@@ -6,6 +6,13 @@ import os
 import sys
 import logging
 
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    _HAS_BOTO3 = True
+except ImportError:
+    _HAS_BOTO3 = False
+
 logger = logging.getLogger("StockTickerLogger")
 
 '''
@@ -73,6 +80,8 @@ class HostedConfigFile():
                 bFileLoadOk = self.getFileWithHTTP(locn, temporaryFile)
             elif locn['getUsing'] == 'local':
                 bFileLoadOk = self.getLocalFile(locn, temporaryFile)
+            elif locn['getUsing'] == 's3':
+                bFileLoadOk = self.getFileFromS3(locn, temporaryFile)
             if bFileLoadOk:
                 tmpFiles.append(temporaryFile)
                 temporaryFile.seek(0)
@@ -122,7 +131,11 @@ class HostedConfigFile():
         tempFile.write(jsonStr)
         tempFile.seek(0)
         for fileIdx in range(len(self.hostedDataLocations)):
-            reslt = self.copyFileToLocation(self.hostedDataLocations[fileIdx], tempFile)
+            locn = self.hostedDataLocations[fileIdx]
+            if locn.get('putUsing') == 's3':
+                reslt = self.putFileToS3(locn, jsonStr)
+            else:
+                reslt = self.copyFileToLocation(locn, tempFile)
             logger.debug(f"PutToLocationIdx {fileIdx} Result {reslt}")
         
     def getFileWithFTP(self, locn, outFile):
@@ -224,13 +237,122 @@ class HostedConfigFile():
             if locn['putUsing'] == 'ftp':
                 logger.debug(f"Attempting to copy file using ftp to {locn['hostURLForPut']} {locn['filePathForPut']}")
                 success = self.putFileWithFTP(locn, fileToCopyFrom)
+            elif locn['putUsing'] == 's3':
+                fileToCopyFrom.seek(0)
+                contents = fileToCopyFrom.read()
+                success = self.putFileToS3(locn, contents, conditional=False)
             elif locn['putUsing'] == 'local':
                 logger.debug(f"Attempting to copy file local to {locn['hostURLForPut']} {locn['filePathForPut']}")
                 with open(locn['hostURLForPut'] + locn['filePathForPut'], "wt") as outFile:
                     success = self.copyFileContents(fileToCopyFrom, outFile)
         except:
-            logger.warn(f"Failed to copy file to {locn['hostURLForPut']} {locn['filePathForPut']}")
+            logger.warn(f"Failed to copy file to {locn.get('hostURLForPut','')} {locn.get('filePathForPut','')} {locn.get('bucket','')}")
         return success
+
+    # --- S3 support ---
+
+    def _readConfigValue(self, key, default=""):
+        """Read a KEY=VALUE entry from privatesettings/config.ini"""
+        try:
+            with open("privatesettings/config.ini", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' in line:
+                        k, v = line.split("=", 1)
+                        if k.strip() == key:
+                            return v.strip()
+        except Exception as e:
+            logger.debug(f"Could not read {key} from config.ini: {e}")
+        return default
+
+    def _getS3Client(self, locn):
+        if not _HAS_BOTO3:
+            logger.error("boto3 is not installed - S3 support unavailable")
+            return None
+        # Read credentials and region from config.ini; fall back to default AWS credential chain
+        access_key = self._readConfigValue('AWS_ACCESS_KEY_ID')
+        secret_key = self._readConfigValue('AWS_SECRET_ACCESS_KEY')
+        region = locn.get('region') or self._readConfigValue('AWS_REGION') or 'us-east-1'
+        kwargs = {'region_name': region}
+        if access_key and secret_key:
+            kwargs['aws_access_key_id'] = access_key
+            kwargs['aws_secret_access_key'] = secret_key
+        return boto3.client('s3', **kwargs)
+
+    def getFileFromS3(self, locn, outFile):
+        s3 = self._getS3Client(locn)
+        if s3 is None:
+            return False
+        bucket = locn.get('bucket', '')
+        key = locn.get('key', '')
+        try:
+            response = s3.get_object(Bucket=bucket, Key=key)
+            contents = response['Body'].read().decode('utf-8')
+            etag = response.get('ETag', '')
+            version_id = response.get('VersionId', '')
+            # Store ETag so we can do conditional writes later
+            locn['_last_etag'] = etag
+            locn['_last_version_id'] = version_id
+            outFile.write(contents)
+            logger.debug(f"Got file from S3 bucket={bucket} key={key} ETag={etag}")
+            return True
+        except ClientError as excp:
+            error_code = excp.response['Error']['Code']
+            if error_code == 'NoSuchKey':
+                logger.warn(f"S3 key not found: bucket={bucket} key={key}")
+            else:
+                logger.warn(f"S3 get failed: bucket={bucket} key={key} error={excp}")
+        except Exception as excp:
+            logger.warn(f"S3 get unexpected error: bucket={bucket} key={key} error={excp}")
+        return False
+
+    def putFileToS3(self, locn, contents, conditional=True):
+        s3 = self._getS3Client(locn)
+        if s3 is None:
+            return False
+        bucket = locn.get('bucket', '')
+        key = locn.get('key', '')
+        try:
+            if conditional:
+                # Check that the remote hasn't changed since we last read it
+                expected_etag = locn.get('_last_etag', '')
+                if expected_etag:
+                    try:
+                        head = s3.head_object(Bucket=bucket, Key=key)
+                        current_etag = head.get('ETag', '')
+                        if current_etag != expected_etag:
+                            logger.warning(
+                                f"S3 conflict: expected ETag {expected_etag}, "
+                                f"remote has {current_etag}. Aborting write to "
+                                f"bucket={bucket} key={key}")
+                            return False
+                    except ClientError as excp:
+                        # If the object doesn't exist yet, that's fine — proceed
+                        if excp.response['Error']['Code'] != '404':
+                            raise
+
+            s3.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=contents.encode('utf-8') if isinstance(contents, str) else contents,
+                ContentType='application/json'
+            )
+            # Update stored ETag after successful write
+            try:
+                head = s3.head_object(Bucket=bucket, Key=key)
+                locn['_last_etag'] = head.get('ETag', '')
+                locn['_last_version_id'] = head.get('VersionId', '')
+            except Exception:
+                pass
+            logger.debug(f"Put file to S3 bucket={bucket} key={key}")
+            return True
+        except ClientError as excp:
+            logger.warn(f"S3 put failed: bucket={bucket} key={key} error={excp}")
+        except Exception as excp:
+            logger.warn(f"S3 put unexpected error: bucket={bucket} key={key} error={excp}")
+        return False
 
     def configFileUpdate(self, updatedData):
         # form data to write

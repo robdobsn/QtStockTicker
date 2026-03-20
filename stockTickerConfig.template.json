@@ -12,5 +12,19 @@
         "hostURLForPut": "", "filePathForPut": "stocklist.json", "putUsing": "local",
         "userName": "", "passWord" : "", "sourceName": "local"
 	  }
+	],
+	"_ConfigLocations_S3_Example":
+	[
+	  {
+	    "getUsing": "s3", "putUsing": "s3",
+	    "bucket": "YOUR_BUCKET_NAME", "key": "stocklist.json", "region": "us-east-1",
+	    "sourceName": "s3",
+	    "_comment": "Credentials via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION in privatesettings/config.ini"
+	  },
+	  {
+	    "hostURLForGet": "", "filePathForGet": "stocklist.json", "getUsing": "local",
+        "hostURLForPut": "", "filePathForPut": "stocklist.json", "putUsing": "local",
+        "userName": "", "passWord" : "", "sourceName": "local"
+	  }
 	]
 }
