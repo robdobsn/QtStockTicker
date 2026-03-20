@@ -5,7 +5,7 @@ Test script for the refactored StockValues_Test provider
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from StockValues_Test import StockValues_Test
 

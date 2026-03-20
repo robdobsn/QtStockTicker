@@ -1,10 +1,10 @@
 """
 Test script to verify AWS S3 configuration for stock list storage.
-Run from the project root: py tests/test_s3_config.py
+Run from the project root: py devevals/test_s3_config.py
 """
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 def read_config_value(key):
     """Read KEY=VALUE from privatesettings/config.ini"""

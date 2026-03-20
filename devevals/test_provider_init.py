@@ -45,7 +45,7 @@ def test_provider_initialization():
     sys.modules['StockValues_Test'] = type('Module', (), {'StockValues_Test': lambda: MockProvider('Test')})
     
     # Now we can import and test
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
     
     # Create a minimal version of the initialization logic
     def _readConfigValue(key, default=""):

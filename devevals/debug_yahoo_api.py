@@ -2,6 +2,8 @@
 
 import logging
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from StockValues_YahooAPI import StockValues_YahooAPI
 
 # Set up logging
@@ -25,7 +27,7 @@ def _readConfigValue(key, default_value=""):
     return default_value
 
 # Test symbols
-test_symbols = ['AAPL', 'GOOGL', 'TSLA']
+test_symbols = ['AAPL', 'GOOGL', 'TSLA', 'MSFT']
 
 # Create provider instance
 provider = StockValues_YahooAPI()
@@ -39,6 +41,9 @@ print(f"Using API host: {api_host}")
 
 provider.setApiKey(api_key)
 provider.setApiHost(api_host)
+
+print(f"Provider headers before call: {provider.headers}")
+print(f"Provider base_url: {provider.base_url}")
 
 print(f"Testing Yahoo API provider with symbols: {test_symbols}")
 print("-" * 60)

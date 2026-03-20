@@ -2,7 +2,9 @@
 
 import logging
 import os
+import sys
 import time
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from StockValues_YahooAPI import StockValues_YahooAPI
 
 # Set up logging

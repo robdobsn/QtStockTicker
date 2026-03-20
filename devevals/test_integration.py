@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import logging
+import sys
+import os
 import time
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 from StockProviderManager import StockProviderManager
 
 # Set up logging

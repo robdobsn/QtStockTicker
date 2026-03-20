@@ -14,4 +14,4 @@ setup(  name = "QtStockTicker",
         version = "3.0",
         description = "Stock Ticker",
         options = {"build_exe": build_exe_options},
-        executables = [Executable("StockTicker.py", base=base)])
+        executables = [Executable("src/StockTicker.py", base=base)])

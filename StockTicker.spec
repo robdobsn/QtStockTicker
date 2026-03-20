@@ -2,8 +2,8 @@
 
 
 a = Analysis(
-    ['StockTicker.py'],
-    pathex=[],
+    ['src/StockTicker.py'],
+    pathex=['src'],
     binaries=[],
     datas=[
         ('res/Add.png', 'res'),
