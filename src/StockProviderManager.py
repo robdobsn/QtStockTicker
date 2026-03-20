@@ -31,7 +31,7 @@ class StockProviderManager:
         
         # Stock data cache
         self.stockData = {}
-        self.dataUpdatedSinceLastUIUpdate = False
+        self._symbolsChangedSinceUIUpdate = set()
         
         # Market hours
         self.openhour = 8
@@ -91,7 +91,6 @@ class StockProviderManager:
                 # Set the callback using the new setCallback method
                 def safe_callback(symbol, stock_data=None):
                     try:
-                        logger.debug(f"StockProviderManager safe_callback called with symbol={symbol}, stock_data={type(stock_data)}")
                         self._providerSymbolChanged(symbol, stock_data)
                     except Exception as e:
                         logger.error(f"Error in StockProviderManager callback: {e}")
@@ -273,34 +272,30 @@ class StockProviderManager:
     
     def _providerSymbolChanged(self, symbol, stock_data=None):
         """Called when a provider reports data change for a symbol"""
-        logger.debug(f"_providerSymbolChanged called for symbol: {symbol}")
+        logger.log(5, f"_providerSymbolChanged called for symbol: {symbol}")
         
         # If stock data was passed directly, use it
         if stock_data is not None:
-            logger.debug(f"_providerSymbolChanged: Using provided stock data for {symbol}")
+            logger.log(5, f"_providerSymbolChanged: Using provided stock data for {symbol}")
             symbol_data = stock_data
         else:
             # Fall back to retrieving data from provider (for backwards compatibility)
-            logger.debug(f"_providerSymbolChanged: Retrieving data from provider for {symbol}")
+            logger.log(5, f"_providerSymbolChanged: Retrieving data from provider for {symbol}")
             current_provider = self.symbol_to_provider.get(symbol)
             if not current_provider:
                 logger.warn(f"_providerSymbolChanged: No provider assigned for symbol {symbol}")
                 return
             
-            logger.debug(f"_providerSymbolChanged: Getting data from provider {current_provider} for {symbol}")
+            logger.log(5, f"_providerSymbolChanged: Getting data from provider {current_provider} for {symbol}")
             provider = self.providers[current_provider]
             symbol_data = None
             
             # Get data from the provider
             try:
                 if hasattr(provider, 'getStockData'):
-                    logger.debug(f"_providerSymbolChanged: Calling getStockData for {symbol}")
                     symbol_data = provider.getStockData(symbol)
-                    logger.debug(f"_providerSymbolChanged: getStockData returned: {symbol_data}")
                 elif hasattr(provider, 'getStockInfoData'):
-                    logger.debug(f"_providerSymbolChanged: Calling getStockInfoData for {symbol}")
                     symbol_data = provider.getStockInfoData(symbol)
-                    logger.debug(f"_providerSymbolChanged: getStockInfoData returned: {symbol_data}")
                 else:
                     logger.warn(f"_providerSymbolChanged: Provider {current_provider} has no getStockData or getStockInfoData method")
                     return
@@ -310,36 +305,35 @@ class StockProviderManager:
                 return
         
         # Check if we got valid data
-        logger.debug(f"_providerSymbolChanged: Checking if data is valid for {symbol}")
-        logger.debug(f"_providerSymbolChanged: Data type: {type(symbol_data)}, Data: {symbol_data}")
+        logger.log(5, f"_providerSymbolChanged: Checking if data is valid for {symbol}")
         
         if symbol_data and self._isValidStockData(symbol_data):
-            logger.debug(f"_providerSymbolChanged: Got valid data for {symbol}, updating cache")
+            logger.log(5, f"_providerSymbolChanged: Got valid data for {symbol}, updating cache")
             # Update our cache and notify the main application
             with self.lock:
                 self.stockData[symbol] = symbol_data
-                self.dataUpdatedSinceLastUIUpdate = True
+                self._symbolsChangedSinceUIUpdate.add(symbol)
             
-            logger.debug(f"_providerSymbolChanged: Calling symbolChangedCallback for {symbol}")
+            logger.log(5, f"_providerSymbolChanged: Calling symbolChangedCallback for {symbol}")
             # Notify the main application
             self.symbolChangedCallback(symbol)
         else:
             # Provider failed to get data, try fallback
             logger.info(f"No valid data from {current_provider} for {symbol}, trying fallback")
-            logger.debug(f"Validation failure: data={symbol_data}, valid={self._isValidStockData(symbol_data) if symbol_data else 'None'}")
+            logger.log(5, f"Validation failure for {symbol}: data={symbol_data}")
             self._tryFallbackProvider(symbol)
     
     def _isValidStockData(self, data):
         """Check if stock data is valid"""
-        logger.debug(f"_isValidStockData: Validating data: {data}")
+        logger.log(5, f"_isValidStockData: Validating data: {data}")
         
         if not data:
-            logger.debug("_isValidStockData: Data is None or empty")
+            logger.log(5, "_isValidStockData: Data is None or empty")
             return False
         
         # Check for explicit failure markers
         fail_count = data.get('failCount', 0)
-        logger.debug(f"_isValidStockData: failCount = {fail_count}")
+        logger.log(5, f"_isValidStockData: failCount = {fail_count}")
         if fail_count > 0:
             logger.debug("_isValidStockData: Data has failCount > 0")
             return False
@@ -406,11 +400,7 @@ class StockProviderManager:
     def getStockData(self, symbol):
         """Get stock data for a symbol"""
         with self.lock:
-            data = self.stockData.get(symbol)
-            logger.debug(f"getStockData called for {symbol}, returning: {data is not None}")
-            if data is None:
-                logger.debug(f"getStockData: No data found for {symbol}. Available symbols: {list(self.stockData.keys())}")
-            return data
+            return self.stockData.get(symbol)
     
     def getStockInfoData(self, symbol):
         """Get stock info data for a symbol - alias for getStockData for compatibility"""
@@ -419,25 +409,18 @@ class StockProviderManager:
     def checkAndSetUIUpdateDataChange(self):
         """Check if data has changed since last UI update"""
         with self.lock:
-            changed = self.dataUpdatedSinceLastUIUpdate
-            self.dataUpdatedSinceLastUIUpdate = False
+            changed = len(self._symbolsChangedSinceUIUpdate) > 0
+            self._symbolsChangedSinceUIUpdate.clear()
             return changed
     
     def getMapOfStocksChangedSinceUIUpdated(self):
         """Get map of stocks that have changed since last UI update"""
-        logger.debug(f"getMapOfStocksChangedSinceUIUpdated called, dataUpdated={self.dataUpdatedSinceLastUIUpdate}")
-        # For compatibility with existing StockTicker.py interface
-        if self.dataUpdatedSinceLastUIUpdate:
-            # Return all symbols that have data
-            changed_stocks = {}
-            with self.lock:
-                for symbol in self.stockData:
-                    changed_stocks[symbol] = True
-                self.dataUpdatedSinceLastUIUpdate = False
-            logger.debug(f"getMapOfStocksChangedSinceUIUpdated returning {len(changed_stocks)} changed stocks")
+        with self.lock:
+            if not self._symbolsChangedSinceUIUpdate:
+                return {}
+            changed_stocks = {sym: True for sym in self._symbolsChangedSinceUIUpdate}
+            self._symbolsChangedSinceUIUpdate.clear()
             return changed_stocks
-        logger.debug("getMapOfStocksChangedSinceUIUpdated returning empty dict")
-        return {}
     
     def setOnlyUpdateWhenMarketOpen(self, onlyWhenOpen):
         """Set whether to only update when market is open"""

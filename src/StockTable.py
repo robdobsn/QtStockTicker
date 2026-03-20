@@ -217,10 +217,8 @@ class StockTable(QtWidgets.QTableWidget):
             symbolName = uiRowDef['sym']
             stkValues = stockValues.getStockData(symbolName)
             if stkValues is not None:
-                logger.debug(f"StockTable updateTable: Processing {symbolName} with price={stkValues.get('price', 'N/A')}")
                 exDivDates.addToStockInfo(symbolName, stkValues)
                 if not "price" in stkValues:
-                    logger.debug(f"StockTable updateTable: No price found for {symbolName}, skipping")
                     continue
                 # Get information on stock
                 stkHolding = self.ToDecimal(uiRowDef["hld"])
@@ -388,7 +386,7 @@ class StockTable(QtWidgets.QTableWidget):
             sumCheck = self.ToDecimal(sub(r'[^\d\-.]', '', sumFromTab))
             sumDiff = abs(sumCheck - sum)
             if sumDiff > 1:
-                pubFolder = os.path.expanduser('~Public\Documents')
+                pubFolder = os.path.expanduser(r'~Public\Documents')
                 f = open(pubFolder + "\\qtstktickdebug.txt", 'w+')
                 f.write("VALUES DON'T ADD UP" + " ColTotal = " + str(sum) + " != TotCell = " + str(sumCheck) + " sumFromTab " + sumFromTab + "\n")
                 for elIdx in range(len(chkValues)):

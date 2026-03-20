@@ -7,6 +7,8 @@ import logging
 import requests
 import datetime
 import time
+import tracemalloc
+import argparse
 
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QTimer, Qt
@@ -46,9 +48,12 @@ SEND_TO_MESSAGE_BOARD = False
 
 class RStockTicker(QtWidgets.QMainWindow):
 
-    def __init__(self):
+    def __init__(self, profiling=False):
         # Superclass
         super(RStockTicker, self).__init__()
+        # Profiling
+        self.profiling = profiling
+        self._updateTimings = []
         # Init
         self.currencySign = "\xA3"
         self.stocksViewLock = threading.Lock()
@@ -92,6 +97,16 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
         self.updateTimer.start(2000)
+
+        # Profiling: periodic tracemalloc snapshots
+        if self.profiling:
+            self._profilingStartTime = time.perf_counter()
+            self._snapshotIntervals = [60, 300, 1800]  # seconds: 1m, 5m, 30m
+            self._nextSnapshotIdx = 0
+            self._dumpTracemalloc("startup")
+            self._profilingTimer = QTimer(self)
+            self._profilingTimer.timeout.connect(self._checkProfilingSnapshot)
+            self._profilingTimer.start(10000)  # check every 10s
         self.stockSymbolList = StockSymbolList()
 #        self.stockSymbolList.getStocksFromCSV()
         self.stockSymbolList.getStocksFromWeb()
@@ -253,6 +268,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         event.accept()
         
     def updateStockValues(self):
+        t0 = time.perf_counter() if self.profiling else None
+
         # Check if stocks information has changed
         forceTableUpdate = False
         self.stocksViewLock.acquire()
@@ -293,15 +310,44 @@ class RStockTicker(QtWidgets.QMainWindow):
             #     logger.debug(f"Doing update {changedStockDict}")
 
         # Update the tables
-        logger.debug(f"Updating tables with changedStockDict: {changedStockDict}")
+        if self.profiling:
+            t_tables_start = time.perf_counter()
+            watch_times = []
+            folio_times = []
+
         for i, table in enumerate(self.watchTables):
-            logger.debug(f"Updating watchTable {i}")
+            t_tab = time.perf_counter() if self.profiling else None
             table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [Decimal("0"),Decimal("0"),0,0])
+            if self.profiling:
+                watch_times.append((time.perf_counter() - t_tab) * 1000)
+
         tableTotals = [Decimal("0"),Decimal("0"),0,0]
         for i, table in enumerate(self.portfolioTables):
-            logger.debug(f"Updating portfolioTable {i}")
+            t_tab = time.perf_counter() if self.profiling else None
             tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals)
             table.SetTotals(tableTotals)
+            if self.profiling:
+                folio_times.append((time.perf_counter() - t_tab) * 1000)
+
+        if self.profiling:
+            tables_ms = (time.perf_counter() - t_tables_start) * 1000
+            watch_str = '+'.join(f'{t:.0f}' for t in watch_times)
+            folio_str = '+'.join(f'{t:.0f}' for t in folio_times)
+            if tables_ms > 50:
+                logger.info(f"PROFILING: tables total={tables_ms:.0f}ms  watch=[{watch_str}]ms  folio=[{folio_str}]ms")
+
+        # Profiling: log update cycle duration
+        if self.profiling and t0 is not None:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            self._updateTimings.append(elapsed_ms)
+            if elapsed_ms > 50:
+                logger.warning(f"PROFILING: updateStockValues took {elapsed_ms:.1f}ms")
+            # Log summary every 30 cycles (~60s)
+            if len(self._updateTimings) >= 30:
+                avg = sum(self._updateTimings) / len(self._updateTimings)
+                peak = max(self._updateTimings)
+                logger.info(f"PROFILING: updateStockValues last 30 cycles — avg={avg:.1f}ms, peak={peak:.1f}ms")
+                self._updateTimings.clear()
 
         if SEND_TO_MESSAGE_BOARD:
             try:
@@ -323,9 +369,27 @@ class RStockTicker(QtWidgets.QMainWindow):
 
     def symbolDataChanged(self, symbol):
         """Callback for when stock data changes"""
-        logger.debug(f"symbolDataChanged called for symbol: {symbol}")
-        # This callback is triggered when stock data has been updated
-        # The actual UI update is handled by the timer-based updateStockValues method
+        pass
+
+    def _dumpTracemalloc(self, label):
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno')
+        current, peak = tracemalloc.get_traced_memory()
+        logger.info(f"PROFILING: tracemalloc [{label}] current={current/1024:.0f}KB peak={peak/1024:.0f}KB")
+        logger.info(f"PROFILING: tracemalloc [{label}] top 15 allocations:")
+        for stat in top_stats[:15]:
+            logger.info(f"  {stat}")
+
+    def _checkProfilingSnapshot(self):
+        if self._nextSnapshotIdx >= len(self._snapshotIntervals):
+            self._profilingTimer.stop()
+            return
+        elapsed = time.perf_counter() - self._profilingStartTime
+        target = self._snapshotIntervals[self._nextSnapshotIdx]
+        if elapsed >= target:
+            label = f"{target}s"
+            self._dumpTracemalloc(label)
+            self._nextSnapshotIdx += 1
 
 def main():
     # Create logs folder if it doesn't exist
@@ -350,11 +414,21 @@ def main():
     ch.setLevel(logging.DEBUG)
     logging.getLogger('').addHandler(ch)
 
+    # Parse arguments
+    parser = argparse.ArgumentParser(description='Stock Ticker')
+    parser.add_argument('--profile', action='store_true', help='Enable Phase 1 profiling (tracemalloc + update cycle timing)')
+    args, remaining = parser.parse_known_args()
+
+    # Start tracemalloc before any allocations if profiling
+    if args.profile:
+        tracemalloc.start()
+        logger.info("PROFILING: tracemalloc started")
+
     # Start the app
     logger.debug(f"StockTicker: Starting")
-    app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication(remaining)
     app.setWindowIcon(QtGui.QIcon(getResourcePath('StockTickerIcon.ico')))
-    stockTicker = RStockTicker()
+    stockTicker = RStockTicker(profiling=args.profile)
     curExitCode = app.exec()
     sys.exit(curExitCode)
 

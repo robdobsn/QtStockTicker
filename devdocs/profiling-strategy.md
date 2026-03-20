@@ -10,14 +10,14 @@ This document outlines a strategy for identifying CPU and memory bottlenecks in 
 
 | Component | Threading Model | Key Concern |
 |-----------|----------------|-------------|
-| Main UI loop (`StockTicker.py`) | QTimer every 2s on main thread | CPU time iterating 6 tables |
+| Main UI loop (`src/StockTicker.py`) | QTimer every 2s on main thread | CPU time iterating 6 tables |
 | `StockTable.updateTable()` | Main thread (Qt requirement) | Cell-by-cell rendering: setText, setBackground, setFont, Decimal math |
-| Yahoo provider (`StockValues_YahooAPI.py`) | Dedicated background thread | Network I/O, lock contention on `self.lock` |
-| IB provider (`StockValues_InteractiveBrokers.py`) | 2 background threads (event loop + request thread) | Persistent TCP, callback latency, lock contention |
-| Google provider (`StockValues_Google.py`) | Dedicated background thread | Web scraping overhead |
-| `HostedConfigFile.py` | Synchronous on startup | Blocks UI while fetching from FTP/HTTP/S3 |
-| `ExDivDates.py` | Separate thread with Selenium | Headless Chrome startup/memory |
-| `StockSymbolList.py` | Called on-demand | BeautifulSoup HTML parsing |
+| Yahoo provider (`src/StockValues_YahooAPI.py`) | Dedicated background thread | Network I/O, lock contention on `self.lock` |
+| IB provider (`src/StockValues_InteractiveBrokers.py`) | 2 background threads (event loop + request thread) | Persistent TCP, callback latency, lock contention |
+| Google provider (`src/StockValues_Google.py`) | Dedicated background thread | Web scraping overhead |
+| `src/HostedConfigFile.py` | Synchronous on startup | Blocks UI while fetching from FTP/HTTP/S3 |
+| `src/ExDivDates.py` | Separate thread with Selenium | Headless Chrome startup/memory |
+| `src/StockSymbolList.py` | Called on-demand | BeautifulSoup HTML parsing |
 
 ---
 
@@ -34,7 +34,7 @@ py-spy top --pid <PID>
 # Or record a flame graph:
 py-spy record -o profile.svg --pid <PID>
 # Or launch directly:
-py-spy record -o profile.svg -- python StockTicker.py
+py-spy record -o profile.svg -- python src/StockTicker.py
 ```
 
 **What to look for**: Which functions dominate the flame graph — expect `updateTable`, Qt paint events, and network I/O to be prominent.
@@ -60,7 +60,7 @@ stats.print_stats(30)
 
 Alternatively, run the whole app under cProfile to get totals:
 ```bash
-python -m cProfile -s cumulative StockTicker.py 2>&1 | head -60
+python -m cProfile -s cumulative src/StockTicker.py 2>&1 | head -60
 ```
 
 ### 3. tracemalloc (Memory — Built-in)
@@ -78,7 +78,7 @@ for stat in top_stats[:20]:
     print(stat)
 ```
 
-Insert this at startup in `StockTicker.py` and periodically dump stats (e.g. every 60 seconds via QTimer) to see if memory grows over time.
+Insert this at startup in `src/StockTicker.py` and periodically dump stats (e.g. every 60 seconds via QTimer) to see if memory grows over time.
 
 ### 4. memory_profiler (Memory — Line-Level)
 
@@ -97,7 +97,7 @@ def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals):
     ...
 ```
 
-Then run: `python -m memory_profiler StockTicker.py`
+Then run: `python -m memory_profiler src/StockTicker.py`
 
 ### 5. objgraph (Memory Leaks)
 
@@ -123,7 +123,7 @@ objgraph.show_growth(limit=10)  # shows which object types are increasing
 
 1. **Launch with py-spy** and let the app run for 5+ minutes during market hours. Capture a flame graph SVG.
 2. **Record baseline memory** using `tracemalloc` snapshots at startup, 1 minute, 5 minutes, and 30 minutes. Check for steady growth.
-3. **Log the update cycle time** by adding simple timing around the `updateStockValues()` method in `StockTicker.py`:
+3. **Log the update cycle time** by adding simple timing around the `updateStockValues()` method in `src/StockTicker.py`:
    ```python
    import time
    t0 = time.perf_counter()
@@ -139,7 +139,7 @@ objgraph.show_growth(limit=10)  # shows which object types are increasing
 
 1. **Run with test provider** (`TEST_MODE=true` in config.ini) to eliminate all network I/O. Re-capture flame graph. If CPU drops significantly, the problem is network/provider-side.
 2. **Run with real providers but comment out table updates** (return early from `updateTable`). If CPU drops, the problem is UI rendering.
-3. **Measure lock contention**: Add timing around lock acquisitions in `StockProviderManager.py` and provider classes:
+3. **Measure lock contention**: Add timing around lock acquisitions in `src/StockProviderManager.py` and provider classes:
    ```python
    t0 = time.perf_counter()
    self.lock.acquire()
@@ -166,7 +166,7 @@ Based on the architecture, these are the most likely bottleneck areas to investi
 - IB runs a persistent event loop that may spin or busy-wait
 - **Profile each thread separately** using py-spy's `--threads` flag:
   ```bash
-  py-spy record -o profile.svg --threads -- python StockTicker.py
+  py-spy record -o profile.svg --threads -- python src/StockTicker.py
   ```
 
 #### C. Startup Blocking
@@ -237,7 +237,7 @@ Use these configurations to isolate variables during profiling:
 ## Quick-Start Checklist
 
 1. [ ] Install py-spy: `pip install py-spy`
-2. [ ] Run `py-spy record -o profile.svg -- python StockTicker.py` for 5 minutes
+2. [ ] Run `py-spy record -o profile.svg -- python src/StockTicker.py` for 5 minutes
 3. [ ] Open `profile.svg` in browser — identify top functions
 4. [ ] Add `tracemalloc` to startup, dump stats every 60s
 5. [ ] Compare flame graphs: TEST_MODE vs real providers

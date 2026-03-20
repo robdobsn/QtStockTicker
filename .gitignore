@@ -1,4 +1,5 @@
 venv
+.venv/
 .idea/
 config.ini
 
@@ -213,6 +214,10 @@ pip-log.txt
 # Unit test / coverage reports
 .coverage
 .tox
+
+# Profiling output
+profile.svg
+*.prof
 
 #Translations
 *.mo

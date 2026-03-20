@@ -35,7 +35,7 @@ class StockSymbolList():
             return
         soup = BeautifulSoup(r.text, "html.parser")
         for x in soup.find_all('a', attrs={'class':"linkTabs"}):
-            mtch = re.match("(.+?)\((.+?)\)", x.text)
+            mtch = re.match(r"(.+?)\((.+?)\)", x.text)
             if (mtch != None and mtch.lastindex == 2):
                 # Append .L to make it work with Yahoo
                 coName = mtch.group(1)
