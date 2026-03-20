@@ -19,6 +19,7 @@ from ExDivDates import ExDivDates
 from StockTable import StockTable
 # Decimal no longer used - float is sufficient for stock prices
 from ExchangeRates import ExchangeRates
+from YahooCalendarEvents import YahooCalendarEvents
 from LocalConfig import LocalConfig
 from HostedConfigFile import HostedConfigFile
 from ResourcePath import getResourcePath
@@ -93,6 +94,18 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.exDivDates = ExDivDates(self.exchangeRates)
         # self.exDivDates.run()
 
+        # Yahoo calendar events (ex-div + earnings dates) — daily refresh
+        yahoo_api_key = self._readConfigValue("YAHOO_FINANCE_API_KEY")
+        yahoo_api_host = self._readConfigValue("YAHOO_API_HOST", "yahoo-finance15.p.rapidapi.com")
+        self.yahooCalendarEvents = None
+        if yahoo_api_key:
+            self.yahooCalendarEvents = YahooCalendarEvents(yahoo_api_key, yahoo_api_host)
+            self.yahooCalendarEvents.setSymbols([s if isinstance(s, str) else s.get('symbol','') for s in heldStockSymbols])
+            self.yahooCalendarEvents.run()
+            logger.info("YahooCalendarEvents started")
+        else:
+            logger.warning("YAHOO_FINANCE_API_KEY not set — YahooCalendarEvents disabled")
+
         # Update for the display
         self.updateTimer = QTimer(self)
         self.updateTimer.timeout.connect(self.updateStockValues)
@@ -123,6 +136,7 @@ class RStockTicker(QtWidgets.QMainWindow):
             { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourBy':'exDivFromHoldings' },
             { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.4f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
             { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Earnings", 'colValName':"earningsDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.watchTableColDefs = [
             { 'colLbl':"Sym", 'colValName':"sym", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'left', 'fontSize':'large', 'colourCode':'PosNeg', 'colourByCol':'change' },
@@ -134,6 +148,7 @@ class RStockTicker(QtWidgets.QMainWindow):
             { 'colLbl':"ExDiv", 'colValName':"exDivDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'colourBy':'exDivFromHoldings' },
             { 'colLbl':"Amount", 'colValName':"exDivAmount", 'dataType':'decimal', 'fmtStr':'{:0.4f}', 'prfxStr':self.currencySign, 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right', 'onlyIfValid':'exDivDate' },
             { 'colLbl':"PayDate", 'colValName':"paymentDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
+            { 'colLbl':"Earnings", 'colValName':"earningsDate", 'dataType':'str', 'fmtStr':'', 'prfxStr':'', 'pstfxStr':'', 'anchor':"e", 'sticky':"EW", 'align':'right' },
             ]
         self.initUI()
 
@@ -222,6 +237,20 @@ class RStockTicker(QtWidgets.QMainWindow):
 
     def quitApp(self):
         QtWidgets.qApp.closeAllWindows()
+
+    def _readConfigValue(self, key, default=""):
+        """Read a value from privatesettings/config.ini"""
+        try:
+            with open("privatesettings/config.ini", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if line.startswith(key + "="):
+                        return line.split("=", 1)[1].strip()
+        except Exception as e:
+            logger.debug(f"Could not read {key} from config.ini: {e}")
+        return default
         
     def editStocksList(self):
         editWindow = StockSettingsDialog()
@@ -234,6 +263,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.stockHoldings.setHoldings(editWindow.updatedStockHoldings)
         heldStockSymbols = self.stockHoldings.getStockSymbols()
         self.stockValues.setStocks(heldStockSymbols)
+        if self.yahooCalendarEvents:
+            self.yahooCalendarEvents.setSymbols([s if isinstance(s, str) else s.get('symbol','') for s in heldStockSymbols])
         self.stocksViewLock.acquire()
         self.stocksListChanged = True
         self.stocksViewLock.release()
@@ -263,6 +294,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         logger.debug(f"closeEvent {event}")
         self.stockValues.stop()
         self.exDivDates.stop()
+        if self.yahooCalendarEvents:
+            self.yahooCalendarEvents.stop()
         self.updateTimer.stop()
         self.exchangeRates.stop()
         event.accept()
@@ -317,14 +350,14 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         for i, table in enumerate(self.watchTables):
             t_tab = time.perf_counter() if self.profiling else None
-            table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [0.0, 0.0, 0, 0])
+            table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [0.0, 0.0, 0, 0], self.yahooCalendarEvents)
             if self.profiling:
                 watch_times.append((time.perf_counter() - t_tab) * 1000)
 
         tableTotals = [0.0, 0.0, 0, 0]
         for i, table in enumerate(self.portfolioTables):
             t_tab = time.perf_counter() if self.profiling else None
-            tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals)
+            tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals, self.yahooCalendarEvents)
             table.SetTotals(tableTotals)
             if self.profiling:
                 folio_times.append((time.perf_counter() - t_tab) * 1000)

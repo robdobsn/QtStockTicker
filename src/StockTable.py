@@ -206,10 +206,10 @@ class StockTable(QtWidgets.QTableWidget):
         # Flash any changed data
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
 
-    def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals):
-        return self._updateTableInner(stockValues, exDivDates, changedStockDict, tableTotals)
+    def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals, yahooCalendarEvents=None):
+        return self._updateTableInner(stockValues, exDivDates, changedStockDict, tableTotals, yahooCalendarEvents)
 
-    def _updateTableInner(self, stockValues, exDivDates, changedStockDict, tableTotals):
+    def _updateTableInner(self, stockValues, exDivDates, changedStockDict, tableTotals, yahooCalendarEvents=None):
         # Update stock table values
         totalVal = 0.0
         totalProfit = 0.0
@@ -222,6 +222,8 @@ class StockTable(QtWidgets.QTableWidget):
             stkValues = stockValues.getStockData(symbolName)
             if stkValues is not None:
                 exDivDates.addToStockInfo(symbolName, stkValues)
+                if yahooCalendarEvents is not None:
+                    yahooCalendarEvents.addToStockInfo(symbolName, stkValues)
                 if not "price" in stkValues:
                     continue
                 # Only recompute values if this symbol changed (or forced)
