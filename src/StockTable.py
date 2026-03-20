@@ -1,7 +1,6 @@
 import os
 from re import sub
 import logging
-from decimal import Decimal
 from PySide6 import QtGui, QtWidgets, QtCore
 from PySide6.QtCore import QElapsedTimer
 
@@ -51,6 +50,7 @@ class StockTable(QtWidgets.QTableWidget):
         self.tableId = tableId
         self.localConfigFile = localConfigFile
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self._resizeCountdown = 5  # resize columns for first N updates only
 
         # Table for stocks
         self.setColumnCount(len(self.uiColDefs))
@@ -131,6 +131,7 @@ class StockTable(QtWidgets.QTableWidget):
     def populateTable(self, stockHolding: list[StockHolding]):
         
         # Stock items table
+        self._resizeCountdown = 5  # reset on repopulate
         self.uiRowDefs = []
         totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0)
         self.setRowCount(totalRowsInTable)
@@ -206,9 +207,12 @@ class StockTable(QtWidgets.QTableWidget):
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
 
     def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals):
+        return self._updateTableInner(stockValues, exDivDates, changedStockDict, tableTotals)
+
+    def _updateTableInner(self, stockValues, exDivDates, changedStockDict, tableTotals):
         # Update stock table values
-        totalVal = self.ToDecimal("0.00")
-        totalProfit = self.ToDecimal("0.00")
+        totalVal = 0.0
+        totalProfit = 0.0
         rowsWithTotalValue = 0
         debugTotals = []
         # Iterate rows
@@ -220,13 +224,18 @@ class StockTable(QtWidgets.QTableWidget):
                 exDivDates.addToStockInfo(symbolName, stkValues)
                 if not "price" in stkValues:
                     continue
-                # Get information on stock
-                stkHolding = self.ToDecimal(uiRowDef["hld"])
-                stkPricePence = self.ToDecimal(stkValues["price"])
-                stkCurValue = (stkPricePence * stkHolding) / self.ToDecimal("100")
-                stkCostPerSharePence = self.ToDecimal(uiRowDef['cost'])
-                stkOrigCost = (stkCostPerSharePence * stkHolding) / self.ToDecimal("100")
-                stkCurProfit = stkCurValue - stkOrigCost
+                # Only recompute values if this symbol changed (or forced)
+                cached = uiRowDef.get('_cache')
+                if changedStockDict is None or symbolName in changedStockDict or cached is None:
+                    stkHolding = self.ToDecimal(uiRowDef["hld"])
+                    stkPricePence = self.ToDecimal(stkValues["price"])
+                    stkCurValue = (stkPricePence * stkHolding) / 100.0
+                    stkCostPerSharePence = self.ToDecimal(uiRowDef['cost'])
+                    stkOrigCost = (stkCostPerSharePence * stkHolding) / 100.0
+                    stkCurProfit = stkCurValue - stkOrigCost
+                    uiRowDef['_cache'] = (stkHolding, stkPricePence, stkCurValue, stkCostPerSharePence, stkOrigCost, stkCurProfit)
+                else:
+                    stkHolding, stkPricePence, stkCurValue, stkCostPerSharePence, stkOrigCost, stkCurProfit = cached
                 # Make calculations
                 totalProfit += stkCurProfit
                 totalVal += stkCurValue
@@ -239,7 +248,7 @@ class StockTable(QtWidgets.QTableWidget):
                         colValName = colDef['colValName']
                         uiCell = self.item(rowIdx, colIdx)
                         cellNewText = ""
-                        cellValue = self.ToDecimal(0)
+                        cellValue = 0.0
                         if colDef['dataType'] == 'decimal':
                             if colValName == 'hld':
                                 cellValue = stkHolding
@@ -273,7 +282,7 @@ class StockTable(QtWidgets.QTableWidget):
                                     if colDef['colourBy'] == 'change':
                                         curCellVal = 0
                                         try:
-                                            curCellVal = self.ToDecimal(float(uiCell.text()))
+                                            curCellVal = float(uiCell.text())
                                         except:
                                             curCellVal = 0
                                         colourByVal = colourByVal - curCellVal
@@ -310,7 +319,7 @@ class StockTable(QtWidgets.QTableWidget):
                             if colDef['onlyIfValid'] in stkValues:
                                 if stkValues[colDef['onlyIfValid']] != "":
                                     bShowValue = True
-                        if bShowValue:
+                        if bShowValue and valChanged:
                             uiCell.setText(cellNewText)
             else: # stkValues is None
                 symbolName = uiRowDef['sym']
@@ -321,9 +330,10 @@ class StockTable(QtWidgets.QTableWidget):
                         uiCell.setText(symbolName)
                         break
 
-        # Resize the table to fit the contents
-        self.resizeColumnsToContents()
-#        self.CrossCheckValues()
+        # Resize the table to fit the contents (only first few updates)
+        if self._resizeCountdown > 0:
+            self.resizeColumnsToContents()
+            self._resizeCountdown -= 1
         # return totals
         tableTotals[0] += totalVal
         tableTotals[1] += totalProfit
@@ -352,12 +362,12 @@ class StockTable(QtWidgets.QTableWidget):
                 if "M" in value:
                     value = value.replace("M","")
                     mult = 1000000
-                outVal = Decimal(value.replace(",", "")) * mult
+                outVal = float(value.replace(",", "")) * mult
             else:
-                outVal = Decimal(value)
+                outVal = float(value)
             return outVal
         except:
-            return Decimal("0")
+            return 0.0
 
     def CrossCheckValues(self):
 

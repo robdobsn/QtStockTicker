@@ -17,7 +17,7 @@ from StockSettingsDialog import StockSettingsDialog
 from StockSymbolList import StockSymbolList
 from ExDivDates import ExDivDates
 from StockTable import StockTable
-from decimal import Decimal
+# Decimal no longer used - float is sufficient for stock prices
 from ExchangeRates import ExchangeRates
 from LocalConfig import LocalConfig
 from HostedConfigFile import HostedConfigFile
@@ -317,11 +317,11 @@ class RStockTicker(QtWidgets.QMainWindow):
 
         for i, table in enumerate(self.watchTables):
             t_tab = time.perf_counter() if self.profiling else None
-            table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [Decimal("0"),Decimal("0"),0,0])
+            table.updateTable(self.stockValues, self.exDivDates, changedStockDict, [0.0, 0.0, 0, 0])
             if self.profiling:
                 watch_times.append((time.perf_counter() - t_tab) * 1000)
 
-        tableTotals = [Decimal("0"),Decimal("0"),0,0]
+        tableTotals = [0.0, 0.0, 0, 0]
         for i, table in enumerate(self.portfolioTables):
             t_tab = time.perf_counter() if self.profiling else None
             tableTotals = table.updateTable(self.stockValues, self.exDivDates, changedStockDict, tableTotals)
@@ -330,15 +330,17 @@ class RStockTicker(QtWidgets.QMainWindow):
                 folio_times.append((time.perf_counter() - t_tab) * 1000)
 
         if self.profiling:
-            tables_ms = (time.perf_counter() - t_tables_start) * 1000
+            t_end = time.perf_counter()
+            tables_ms = (t_end - t_tables_start) * 1000
+            elapsed_ms = (t_end - t0) * 1000
             watch_str = '+'.join(f'{t:.0f}' for t in watch_times)
             folio_str = '+'.join(f'{t:.0f}' for t in folio_times)
+            pre_tables_ms = (t_tables_start - t0) * 1000
             if tables_ms > 50:
-                logger.info(f"PROFILING: tables total={tables_ms:.0f}ms  watch=[{watch_str}]ms  folio=[{folio_str}]ms")
+                logger.info(f"PROFILING: tables total={tables_ms:.0f}ms  watch=[{watch_str}]ms  folio=[{folio_str}]ms  pre={pre_tables_ms:.0f}ms  cycle={elapsed_ms:.0f}ms")
 
         # Profiling: log update cycle duration
         if self.profiling and t0 is not None:
-            elapsed_ms = (time.perf_counter() - t0) * 1000
             self._updateTimings.append(elapsed_ms)
             if elapsed_ms > 50:
                 logger.warning(f"PROFILING: updateStockValues took {elapsed_ms:.1f}ms")
