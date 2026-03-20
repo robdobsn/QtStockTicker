@@ -1,16 +1,39 @@
 # QtStockTicker
 by Rob Dobson 2013, updated 2024
 
+Real-time stock price display built with PySide6 (Qt 6). Supports multiple data providers (Yahoo Finance API, Google Finance, Interactive Brokers) with automatic failover.
+
+See [docs/technical-overview.md](docs/technical-overview.md) for a detailed description of the architecture and data flow.
+
+## Requirements
+
+- Python 3.11 or 3.12 (PySide6 6.6.1 does not yet support 3.13+)
+- [uv](https://docs.astral.sh/uv/) is recommended for environment management
+
 ## Build
 
-To build an executable:
+To build a standalone Windows executable:
 
-1) Setup a virtual environment (venv)
-2) Activate the venv
-3) pip install -r requirements.txt
-4) pyinstaller StockTicker.spec --noconfirm
+```bash
+uv venv --python 3.12
+.venv\Scripts\activate
+uv pip install -r requirements.txt
+uv run pyinstaller StockTicker.spec --noconfirm
+```
 
-The exe is in the dist folder and the _internal folder is also required to be copied to the required distribution folder
+The exe is in the `dist/StockTicker/` folder. The `_internal/` folder alongside it is also required at runtime.
+
+## Running from Source
+
+```bash
+python src/StockTicker.py
+```
+
+Add `--profile` to enable performance instrumentation (per-cycle timing and memory snapshots).
+
+## Project Layout
+
+All application source lives under `src/`. Tests are in `tests/`. Private configuration goes in `privatesettings/`.
 
 ## Configuration File
 
