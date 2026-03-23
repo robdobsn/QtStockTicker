@@ -116,7 +116,7 @@ class StockValues_YahooAPI:
         """Start the provider"""
         logger.info("StockValues_YahooAPI started")
         self.running = True
-        self.t = threading.Thread(target=self.stockUpdateThread)
+        self.t = threading.Thread(target=self.stockUpdateThread, daemon=True)
         self.t.start()        
 
     def stop(self):
@@ -239,18 +239,41 @@ class StockValues_YahooAPI:
                     break
                 time.sleep(1)
 
+    @staticmethod
+    def _to_yahoo_symbol(symbol):
+        """Translate a ticker symbol to Yahoo Finance format.
+        
+        Dots within the symbol name are replaced with hyphens, but the
+        exchange suffix (e.g. .L) is preserved.  For example BT.A.L -> BT-A.L
+        """
+        parts = symbol.split('.')
+        if len(parts) <= 2:
+            return symbol
+        # Join all parts except the last with '-', keep the exchange suffix
+        return '-'.join(parts[:-1]) + '.' + parts[-1]
+
     def get_quotes(self, symbols):
         """
         Get real-time quotes using the correct Yahoo Finance API endpoint
         """
         quotes = {}
         
+        # Build mapping from Yahoo symbol back to original symbol
+        yahoo_to_orig = {}
+        yahoo_symbols = []
+        for sym in symbols:
+            ysym = self._to_yahoo_symbol(sym).upper()
+            yahoo_to_orig[ysym] = sym
+            yahoo_symbols.append(ysym)
+            if ysym != sym:
+                logger.debug(f"Translated symbol {sym} -> {ysym} for Yahoo API")
+        
         try:
             # Use the correct API endpoint for multiple symbols
             url = f"{self.base_url}/api/v1/markets/stock/quotes"
             
             # Join symbols with comma for batch request
-            ticker_param = ','.join(symbols)
+            ticker_param = ','.join(yahoo_symbols)
             params = {'ticker': ticker_param}
             
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
@@ -261,12 +284,14 @@ class StockValues_YahooAPI:
             # Parse the new API response format
             if 'body' in data and isinstance(data['body'], list):
                 for item in data['body']:
-                    symbol = item.get('symbol', '')
-                    if symbol:
+                    yahoo_symbol = item.get('symbol', '')
+                    if yahoo_symbol:
+                        # Map back to the original symbol used by the app
+                        orig_symbol = yahoo_to_orig.get(yahoo_symbol, yahoo_symbol)
                         # Map new API response to expected format
-                        quotes[symbol] = {
-                            'sym': symbol,
-                            'name': item.get('longName', item.get('shortName', symbol)),
+                        quotes[orig_symbol] = {
+                            'sym': orig_symbol,
+                            'name': item.get('longName', item.get('shortName', orig_symbol)),
                             'price': item.get('regularMarketPrice', 0),
                             'change': item.get('regularMarketChange', 0),
                             'chg_percent': item.get('regularMarketChangePercent', 0),
@@ -276,7 +301,7 @@ class StockValues_YahooAPI:
                             'low': item.get('regularMarketDayLow', 0),
                             'close': item.get('regularMarketPreviousClose', 0),
                         }
-                        logger.debug(f"Successfully got quote for {symbol}: price={quotes[symbol]['price']}")
+                        logger.debug(f"Successfully got quote for {orig_symbol}: price={quotes[orig_symbol]['price']}")
             else:
                 logger.warn(f"Unexpected API response format: {data}")
                 

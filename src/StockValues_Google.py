@@ -142,7 +142,7 @@ class StockValues_Google:
         """Start the provider"""
         logger.info("StockValues_Google started")
         self.running = True
-        self.t = threading.Thread(target=self.stockUpdateThread)
+        self.t = threading.Thread(target=self.stockUpdateThread, daemon=True)
         self.t.start()        
 
     def stop(self):
@@ -289,6 +289,7 @@ class StockValues_Google:
     #     return inStr
     
     def requestFromGoogle(self, symbol):
+        symbol = symbol.upper()
         url = 'https://finance.google.com/finance?output=json&q=' + symbol
         logger.debug(f"StockValues_Google: Requesting {url}")
         req = Request(url)
@@ -304,7 +305,7 @@ class StockValues_Google:
         return jsonStr
 
     def requestFromAlternate(self, symbol, exchange):
-
+        symbol = symbol.upper()
         url = 'http://eoddata.com/stockquote/' + exchange + "/" + symbol + ".htm"
         logger.debug(f"StockValues_Google: Requesting {url}")
         req = requests.get(url)

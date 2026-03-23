@@ -7,6 +7,7 @@ import logging
 import requests
 import datetime
 import time
+import json
 import tracemalloc
 import argparse
 
@@ -49,11 +50,20 @@ SEND_TO_MESSAGE_BOARD = False
 
 class RStockTicker(QtWidgets.QMainWindow):
 
-    def __init__(self, profiling=False):
+    def __init__(self, profiling=False, dump_mode=False):
         # Superclass
         super(RStockTicker, self).__init__()
         # Profiling
         self.profiling = profiling
+        # Dump mode: collect all quotes then write JSON and exit
+        self._dumpMode = dump_mode
+        self._dumpStartTime = time.perf_counter() if dump_mode else None
+        self._dumpTimeoutSecs = 300  # max wait for all quotes (5 min)
+        self._dumpStableCount = 0  # consecutive cycles with all data present
+        self._dumpStableNeeded = 3  # require N stable cycles before dumping
+        self._dumpLastCount = 0  # last symbolsWithData count (for stall detection)
+        self._dumpStallCycles = 0  # consecutive cycles with no new data
+        self._dumpStallThreshold = 15  # dump after this many stall cycles (~30s)
         self._updateTimings = []
         # Init
         self.currencySign = "\xA3"
@@ -74,6 +84,17 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.hostedConfigFile.initFromFile('privatesettings/stockTickerConfig.json')
         #self.stockreader.readFromShareScopeCSV("robstkexpt.csv")
         stocksDataFileContents = self.hostedConfigFile.getConfigDataFromLocation()
+
+        # Fallback: load from privatesettings/stocklist.json if hosted config failed
+        if stocksDataFileContents is None:
+            fallbackPath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'privatesettings', 'stocklist.json')
+            logger.info(f"Hosted config returned no data, trying fallback: {fallbackPath}")
+            try:
+                with open(fallbackPath, 'r') as f:
+                    stocksDataFileContents = json.load(f)
+                logger.info("Loaded stock list from privatesettings fallback")
+            except Exception as e:
+                logger.warning(f"Failed to load fallback stocklist: {e}")
 
         # Load stocks from file
         self.stockHoldings.loadFromStocksDataFileContents(stocksDataFileContents)
@@ -220,7 +241,10 @@ class RStockTicker(QtWidgets.QMainWindow):
         self.windowTitle = 'Stock Ticker'
         self.setWindowTitle(self.windowTitle)
         self.resize(1280,800)
-        self.show()
+        if self._dumpMode:
+            logger.info("DUMP: Running in dump mode — window hidden, will exit after data collection")
+        else:
+            self.show()
 
     def populateTablesWithStocks(self):
         fullStockList = self.stockHoldings.getStockHoldings(False)
@@ -337,6 +361,9 @@ class RStockTicker(QtWidgets.QMainWindow):
         if not forceTableUpdate:
             changedStockDict = self.stockValues.getMapOfStocksChangedSinceUIUpdated()
             if len(changedStockDict) == 0:
+                # In dump mode, still check if we should dump (even with no new UI changes)
+                if self._dumpMode:
+                    self._checkDumpReady(None)
                 # logger.debug(f"No Update Required {changedStockDict}")
                 return
             # else:
@@ -384,6 +411,10 @@ class RStockTicker(QtWidgets.QMainWindow):
                 logger.info(f"PROFILING: updateStockValues last 30 cycles — avg={avg:.1f}ms, peak={peak:.1f}ms")
                 self._updateTimings.clear()
 
+        # Dump mode: check if we have all available data and dump
+        if self._dumpMode:
+            self._checkDumpReady(tableTotals)
+
         if SEND_TO_MESSAGE_BOARD:
             try:
                 stkValues = self.stockValues.getStockData("^FTSE")
@@ -426,6 +457,166 @@ class RStockTicker(QtWidgets.QMainWindow):
             self._dumpTracemalloc(label)
             self._nextSnapshotIdx += 1
 
+    # ---- Dump mode ----
+
+    def _checkDumpReady(self, tableTotals):
+        """Check if all stock quotes are available, then dump and exit."""
+        elapsed = time.perf_counter() - self._dumpStartTime
+
+        # Count how many stocks have valid price data
+        allStocks = self.stockHoldings.getStockHoldings(False)
+        totalSymbols = len(allStocks)
+        symbolsWithData = 0
+        for stk in allStocks:
+            data = self.stockValues.getStockData(stk['symbol'])
+            if data and 'price' in data and data['price'] not in (None, 0, '0'):
+                symbolsWithData += 1
+
+        logger.info(f"DUMP: {symbolsWithData}/{totalSymbols} symbols have data ({elapsed:.0f}s elapsed)")
+
+        # Check if we have all, or at least all we're going to get (timeout or stall)
+        allReady = symbolsWithData == totalSymbols
+        timedOut = elapsed >= self._dumpTimeoutSecs
+
+        # Detect stall: no new symbols for several consecutive cycles
+        if symbolsWithData > self._dumpLastCount:
+            self._dumpStallCycles = 0
+            self._dumpLastCount = symbolsWithData
+        else:
+            self._dumpStallCycles += 1
+        stalled = self._dumpStallCycles >= self._dumpStallThreshold and symbolsWithData > 0
+
+        if allReady:
+            self._dumpStableCount += 1
+        else:
+            self._dumpStableCount = 0
+
+        if (allReady and self._dumpStableCount >= self._dumpStableNeeded) or timedOut or stalled:
+            if stalled and not allReady:
+                logger.info(f"DUMP: No new data for {self._dumpStallCycles * 2}s — proceeding with {symbolsWithData}/{totalSymbols} symbols")
+            elif timedOut and not allReady:
+                logger.warning(f"DUMP: Timed out after {elapsed:.0f}s with {symbolsWithData}/{totalSymbols} symbols")
+            self._performDump()
+            # Exit the application
+            QTimer.singleShot(500, lambda: QtWidgets.qApp.quit())
+            self._dumpMode = False  # prevent re-entry
+
+    def _performDump(self):
+        """Build and write the full dataset JSON dump."""
+        allStocks = self.stockHoldings.getStockHoldings(True)  # sorted by symbol
+
+        watchList = []
+        portfolioList = []
+        grandTotalValue = 0.0
+        grandTotalProfit = 0.0
+        grandTotalCost = 0.0
+        symbolsMissing = []
+
+        for stk in allStocks:
+            symbol = stk['symbol']
+            holding = float(stk.get('holding', 0) or 0)
+            costPerSharePence = float(stk.get('cost', 0) or 0)
+
+            # Get live quote data
+            rawData = self.stockValues.getStockData(symbol)
+
+            # Enrich with ex-div and calendar events
+            if rawData is not None:
+                stkValues = dict(rawData)  # copy to avoid mutating cache
+                self.exDivDates.addToStockInfo(symbol, stkValues)
+                if self.yahooCalendarEvents is not None:
+                    self.yahooCalendarEvents.addToStockInfo(symbol, stkValues)
+            else:
+                stkValues = None
+                symbolsMissing.append(symbol)
+
+            # Build record
+            record = {
+                'symbol': symbol,
+                'holding': holding,
+                'costPerSharePence': costPerSharePence,
+                'stockProvider': stk.get('stock_provider', ''),
+            }
+
+            if stkValues is not None:
+                pricePence = float(stkValues.get('price', 0) or 0)
+                change = float(stkValues.get('change', 0) or 0)
+                chgPercent = float(stkValues.get('chg_percent', 0) or 0)
+                volume = stkValues.get('volume', 0)
+                name = stkValues.get('name', '')
+
+                record['quote'] = {
+                    'name': name,
+                    'pricePence': pricePence,
+                    'change': change,
+                    'changePercent': chgPercent,
+                    'volume': volume,
+                    'open': stkValues.get('open'),
+                    'high': stkValues.get('high'),
+                    'low': stkValues.get('low'),
+                    'previousClose': stkValues.get('close'),
+                    'exDivDate': stkValues.get('exDivDate', ''),
+                    'exDivAmount': stkValues.get('exDivAmount', ''),
+                    'paymentDate': stkValues.get('paymentDate', ''),
+                    'earningsDate': stkValues.get('earningsDate', ''),
+                    'failCount': stkValues.get('failCount', 0),
+                    'time': stkValues.get('time', ''),
+                }
+
+                # Calculated fields (same logic as StockTable)
+                if holding != 0:
+                    valuePounds = (pricePence * holding) / 100.0
+                    costPounds = (costPerSharePence * holding) / 100.0
+                    profitPounds = valuePounds - costPounds
+                    profitPercent = (profitPounds / costPounds * 100.0) if costPounds != 0 else 0.0
+
+                    record['calculated'] = {
+                        'valuePounds': round(valuePounds, 2),
+                        'costPounds': round(costPounds, 2),
+                        'profitPounds': round(profitPounds, 2),
+                        'profitPercent': round(profitPercent, 2),
+                    }
+
+                    grandTotalValue += valuePounds
+                    grandTotalProfit += profitPounds
+                    grandTotalCost += costPounds
+            else:
+                record['quote'] = None
+                if holding != 0:
+                    record['calculated'] = None
+
+            if holding == 0:
+                watchList.append(record)
+            else:
+                portfolioList.append(record)
+
+        dump = {
+            'dumpTimestamp': datetime.datetime.now().isoformat(),
+            'totalSymbols': len(allStocks),
+            'symbolsWithData': len(allStocks) - len(symbolsMissing),
+            'symbolsMissing': symbolsMissing,
+            'portfolio': {
+                'stocks': portfolioList,
+                'totals': {
+                    'totalValuePounds': round(grandTotalValue, 2),
+                    'totalCostPounds': round(grandTotalCost, 2),
+                    'totalProfitPounds': round(grandTotalProfit, 2),
+                    'totalProfitPercent': round((grandTotalProfit / grandTotalCost * 100.0) if grandTotalCost != 0 else 0.0, 2),
+                    'numberOfHoldings': len(portfolioList),
+                },
+            },
+            'watchList': {
+                'stocks': watchList,
+                'numberOfStocks': len(watchList),
+            },
+        }
+
+        outPath = 'stockDataDump.json'
+        with open(outPath, 'w', encoding='utf-8') as f:
+            json.dump(dump, f, indent=2, default=str)
+        logger.info(f"DUMP: Written {outPath} ({len(allStocks)} stocks, {len(portfolioList)} portfolio, {len(watchList)} watchlist)")
+        print(f"Dataset dumped to {outPath}")
+
 def main():
     # Create logs folder if it doesn't exist
     try:
@@ -452,6 +643,7 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description='Stock Ticker')
     parser.add_argument('--profile', action='store_true', help='Enable Phase 1 profiling (tracemalloc + update cycle timing)')
+    parser.add_argument('--dump', action='store_true', help='Run until all quotes received, dump dataset to stockDataDump.json, then exit')
     args, remaining = parser.parse_known_args()
 
     # Start tracemalloc before any allocations if profiling
@@ -463,9 +655,10 @@ def main():
     logger.debug(f"StockTicker: Starting")
     app = QtWidgets.QApplication(remaining)
     app.setWindowIcon(QtGui.QIcon(getResourcePath('StockTickerIcon.ico')))
-    stockTicker = RStockTicker(profiling=args.profile)
+    stockTicker = RStockTicker(profiling=args.profile, dump_mode=args.dump)
     curExitCode = app.exec()
-    sys.exit(curExitCode)
+    logger.debug("StockTicker: Qt event loop ended, forcing exit")
+    os._exit(curExitCode)
 
 if __name__ == '__main__':
     main()

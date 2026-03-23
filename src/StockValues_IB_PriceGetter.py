@@ -44,7 +44,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         self.connect(ipaddress, portid, clientid)
         
         # Start a thread which runs the run() function inside EClient in the IB API
-        self.getterThread = threading.Thread(target = self.run)
+        self.getterThread = threading.Thread(target = self.run, daemon=True)
         self.getterThread.start()
         setattr(self, "_thread", self.getterThread)
         
@@ -54,7 +54,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         self.requestStockListChanged = False
         self.requestListLock = threading.Lock()
         self.requestThreadRunning = True
-        self.requestThread = threading.Thread(target = self.requestMarketData)
+        self.requestThread = threading.Thread(target = self.requestMarketData, daemon=True)
         self.requestThread.start()
         
         # A lock for the dictionary used to access symbol values
@@ -147,8 +147,8 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
 
     def makeStockInfo(self, ySymbol):
         nowInUk = datetime.datetime.now(pytz.timezone('GB'))
-        # Base record
-        stkInfo = {"ySymbol": ySymbol, "symbol": ySymbol, "name": "", "exchange": "SMART",
+        # Base record - uppercase the symbol for API requests
+        stkInfo = {"ySymbol": ySymbol, "symbol": ySymbol.upper(), "name": "", "exchange": "SMART",
                     "currency": "USD", "secType": "STK", "includeExpired": False,
                     "failCount": 0, "time": nowInUk}
         if ySymbol in self._IB_SymbolMappings:
@@ -165,7 +165,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
                     symb = ySymbol[:dotPos]
                     if len(symb) == 2:
                         symb += "."
-                    stkInfo["symbol"] = symb
+                    stkInfo["symbol"] = symb.upper()
             else:
                 atPos = ySymbol.rfind("@")
                 if atPos > 0:
@@ -173,7 +173,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
                     symb = ySymbol[:atPos]
                     if len(symb) == 2:
                         symb += "."
-                    stkInfo["symbol"] = symb
+                    stkInfo["symbol"] = symb.upper()
         return stkInfo
 
     def getContractInfo(self, stockInfo):

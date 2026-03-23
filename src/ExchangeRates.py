@@ -49,7 +49,7 @@ class ExchangeRates:
         # Start the thread
         if ENABLE_EXCHANGE_RATES:
             self.running = True
-            self.t = threading.Thread(target=self.exRateUpdateThread)
+            self.t = threading.Thread(target=self.exRateUpdateThread, daemon=True)
             self.t.start()
 
     def stop(self):

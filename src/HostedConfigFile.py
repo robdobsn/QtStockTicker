@@ -235,18 +235,18 @@ class HostedConfigFile():
         success = False
         try:
             if locn['putUsing'] == 'ftp':
-                logger.debug(f"Attempting to copy file using ftp to {locn['hostURLForPut']} {locn['filePathForPut']}")
+                logger.debug(f"Attempting to copy file using ftp to {locn['hostURLForPut'] + locn['filePathForPut']}")
                 success = self.putFileWithFTP(locn, fileToCopyFrom)
             elif locn['putUsing'] == 's3':
                 fileToCopyFrom.seek(0)
                 contents = fileToCopyFrom.read()
                 success = self.putFileToS3(locn, contents, conditional=False)
             elif locn['putUsing'] == 'local':
-                logger.debug(f"Attempting to copy file local to {locn['hostURLForPut']} {locn['filePathForPut']}")
+                logger.debug(f"Attempting to copy file local to {locn['hostURLForPut'] + locn['filePathForPut']}")
                 with open(locn['hostURLForPut'] + locn['filePathForPut'], "wt") as outFile:
                     success = self.copyFileContents(fileToCopyFrom, outFile)
         except:
-            logger.warn(f"Failed to copy file to {locn.get('hostURLForPut','')} {locn.get('filePathForPut','')} {locn.get('bucket','')}")
+            logger.warn(f"Failed to copy file to {locn.get('hostURLForPut','') + locn.get('filePathForPut','')} {locn.get('bucket','')}")
         return success
 
     # --- S3 support ---

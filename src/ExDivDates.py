@@ -40,7 +40,7 @@ class ExDivDates():
         
     def run(self):
         self.running = True
-        self.t = threading.Thread(target=self.do_thread_scrape)
+        self.t = threading.Thread(target=self.do_thread_scrape, daemon=True)
         self.t.start()
 
     def stop(self):
