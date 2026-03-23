@@ -71,6 +71,14 @@ class StockTable(QtWidgets.QTableWidget):
         palette.setBrush(QtGui.QPalette.Base, self.brushBackground)
         self.setPalette(palette)
 
+        # Sorting state
+        self._sortColumn = -1
+        self._sortOrder = 0  # 0=original, 1=ascending, 2=descending
+        self._originalRowDefs = []
+        self._forceFullUpdate = False
+        self.horizontalHeader().setSectionsClickable(True)
+        self.horizontalHeader().sectionClicked.connect(self._onHeaderClicked)
+
     def getDefaultFont(self, height: int, tableFontId: str):
         fontSize = 6
         weight = 50
@@ -132,6 +140,8 @@ class StockTable(QtWidgets.QTableWidget):
         
         # Stock items table
         self._resizeCountdown = 5  # reset on repopulate
+        self._sortColumn = -1
+        self._sortOrder = 0
         self.uiRowDefs = []
         totalRowsInTable = len(stockHolding) + (1 if self.bTotalsRow else 0)
         self.setRowCount(totalRowsInTable)
@@ -152,6 +162,7 @@ class StockTable(QtWidgets.QTableWidget):
             rowDef = { 'sym':stk['symbol'], 'hld':stk['holding'], 'cost':stk['cost'] }
             self.uiRowDefs.append(rowDef)
             rowIdx += 1
+        self._originalRowDefs = list(self.uiRowDefs)
         self.totalsRow = rowIdx
 
         if self.bTotalsRow:
@@ -206,6 +217,46 @@ class StockTable(QtWidgets.QTableWidget):
         # Flash any changed data
         self.updateDataFlash(self, self.uiColDefs, self.uiRowDefs, self.dataFlashTimerStarted, self.dataFlashTimer)
 
+    def _onHeaderClicked(self, colIdx):
+        """Sort table by column: click cycles ascending -> descending -> original order."""
+        if colIdx == self._sortColumn:
+            self._sortOrder = (self._sortOrder + 1) % 3
+        else:
+            self._sortColumn = colIdx
+            self._sortOrder = 1  # ascending
+
+        if self._sortOrder == 0:
+            # Restore original order
+            self.uiRowDefs = list(self._originalRowDefs)
+        else:
+            # Build sort values from current cell text before reordering
+            sortValues = {}
+            colDef = self.uiColDefs[colIdx]
+            isNumeric = colDef['dataType'] == 'decimal'
+            for rowIdx, rowDef in enumerate(self.uiRowDefs):
+                cellText = self.item(rowIdx, colIdx).text() if self.item(rowIdx, colIdx) else ''
+                if isNumeric:
+                    try:
+                        sortValues[id(rowDef)] = float(sub(r'[^\d\-.]', '', cellText)) if cellText else 0.0
+                    except:
+                        sortValues[id(rowDef)] = 0.0
+                else:
+                    sortValues[id(rowDef)] = cellText.lower()
+
+            reverse = (self._sortOrder == 2)
+            self.uiRowDefs = sorted(self.uiRowDefs, key=lambda rd: sortValues.get(id(rd), 0), reverse=reverse)
+
+        # Rearrange cell contents to match new row order
+        self._applySortToTable()
+
+    def _applySortToTable(self):
+        """Rewrite all cell contents to match current uiRowDefs order."""
+        # Clear caches and force full redraw on next update cycle
+        for rowDef in self.uiRowDefs:
+            rowDef.pop('_cache', None)
+        self._forceFullUpdate = True
+        self._resizeCountdown = 2
+
     def updateTable(self, stockValues, exDivDates, changedStockDict, tableTotals, yahooCalendarEvents=None):
         return self._updateTableInner(stockValues, exDivDates, changedStockDict, tableTotals, yahooCalendarEvents)
 
@@ -215,6 +266,11 @@ class StockTable(QtWidgets.QTableWidget):
         totalProfit = 0.0
         rowsWithTotalValue = 0
         debugTotals = []
+        # If a sort just happened, force all rows to redraw
+        forceAll = getattr(self, '_forceFullUpdate', False)
+        if forceAll:
+            self._forceFullUpdate = False
+            changedStockDict = None
         # Iterate rows
         for rowIdx in range(len(self.uiRowDefs)):
             uiRowDef = self.uiRowDefs[rowIdx]
