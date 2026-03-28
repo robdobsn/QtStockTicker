@@ -2,7 +2,7 @@ venv
 .venv/
 .idea/
 config.ini
-
+vendor_ibapi/
 
 #################
 ## Eclipse

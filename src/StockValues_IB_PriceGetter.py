@@ -41,7 +41,9 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         StockValues_IB_MarketDataClient.__init__(self, wrapper=self)
         
         # Connect using the passed params
+        logger.info(f"StockValues_IB: connecting to {ipaddress}:{portid} clientId={clientid}")
         self.connect(ipaddress, portid, clientid)
+        logger.info(f"StockValues_IB: connect() returned, isConnected={self.isConnected()}")
         
         # Start a thread which runs the run() function inside EClient in the IB API
         self.getterThread = threading.Thread(target = self.run, daemon=True)
@@ -60,7 +62,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         # A lock for the dictionary used to access symbol values
         self.mapsLock = threading.Lock()
 
-    def error(self, reqId:int, errorCode:int, errorString:str):
+    def error(self, reqId:int, errorTime:int, errorCode:int, errorString:str, advancedOrderRejectJson=""):
         if errorCode == 200 or errorCode == 504: # security not found OR not connected
             with self.mapsLock:
                 if reqId in self._mapPriceReqIdToStockInfo:
@@ -189,6 +191,16 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         return c
 
     def requestMarketData(self):
+        # Wait for IB connection to be established before processing requests
+        timeout = 30
+        waited = 0
+        while not self.isConnected() and waited < timeout and self.requestThreadRunning:
+            time.sleep(1)
+            waited += 1
+        if not self.isConnected():
+            logger.warning("StockValues_IB: timed out waiting for IB Gateway connection")
+            return
+        logger.info("StockValues_IB: connection ready, processing market data requests")
         while self.requestThreadRunning:
             # Check if there is new data
             if self.requestStockListChanged:
