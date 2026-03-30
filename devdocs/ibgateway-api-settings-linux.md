@@ -1,7 +1,5 @@
 # IB Gateway API Settings
 
-Account: U1918887
-
 ## General
 
 - [x] Read-Only API
