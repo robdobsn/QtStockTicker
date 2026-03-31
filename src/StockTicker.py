@@ -655,7 +655,19 @@ def main():
     logger.debug(f"StockTicker: Starting")
     app = QtWidgets.QApplication(remaining)
     app.setWindowIcon(QtGui.QIcon(getResourcePath('StockTickerIcon.ico')))
+
+    splash = None
+    if not args.dump:
+        splash_pixmap = QtGui.QPixmap(getResourcePath('StockTickerIcon.png'))
+        if not splash_pixmap.isNull():
+            splash = QtWidgets.QSplashScreen(splash_pixmap)
+            splash.showMessage("Loading Stock Ticker...", Qt.AlignBottom | Qt.AlignHCenter, Qt.white)
+            splash.show()
+            app.processEvents()
+
     stockTicker = RStockTicker(profiling=args.profile, dump_mode=args.dump)
+    if splash is not None:
+        splash.finish(stockTicker)
     curExitCode = app.exec()
     logger.debug("StockTicker: Qt event loop ended, forcing exit")
     os._exit(curExitCode)

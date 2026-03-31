@@ -165,14 +165,8 @@ wheels = [
 
 [[package]]
 name = "ibapi"
-version = "10.37.1"
+version = "9.81.1.post1"
 source = { directory = "vendor_ibapi" }
-dependencies = [
-    { name = "protobuf" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "protobuf" }]
 
 [[package]]
 name = "idna"

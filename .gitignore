@@ -2,8 +2,7 @@ venv
 .venv/
 .idea/
 config.ini
-vendor_ibapi/
-ib_async/
+]ib_async/
 
 #################
 ## Eclipse

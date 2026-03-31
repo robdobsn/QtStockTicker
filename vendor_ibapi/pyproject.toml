@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ibapi"
+version = "9.81.1.post1"
+description = "Interactive Brokers Python API"
+requires-python = ">=3.6"

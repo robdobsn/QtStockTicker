@@ -1,4 +1,4 @@
-Copyright (c) 2013 Rob Dobson
+Copyright (c) 2013..2026 Rob Dobson
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation
@@ -20,3 +20,20 @@ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+Third-Party Code
+================
+
+The vendor_ibapi/ directory contains the Interactive Brokers
+TWS API for Python (version 9.81.1), which is Copyright (C) 2019
+Interactive Brokers LLC. All rights reserved. This code is NOT
+covered by the MIT license above. It is subject to the terms and
+conditions of the IB API Non-Commercial License or the IB API
+Commercial License, as applicable. For full license terms, see:
+https://interactivebrokers.github.io/
+
+This code is included here in vendored form for build convenience.
+Users of this project must comply with Interactive Brokers' license
+terms when using or distributing the IB API code.

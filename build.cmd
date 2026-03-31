@@ -10,4 +10,4 @@ REM
 REM Or with pyproject.toml:
 REM   uv sync --all-extras
 
-uv run pyinstaller StockTicker.spec
+uv run pyinstaller StockTicker.spec -y

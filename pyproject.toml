@@ -16,7 +16,7 @@ dependencies = [
     "python-dateutil>=2.8.2",
     "pytz>=2024.1",
     "boto3>=1.26.0",
-    "ibapi>=10.37.1",
+    "ibapi>=9.81.0",
     "protobuf>=5.0.0",
     "html5lib>=1.1",
 ]

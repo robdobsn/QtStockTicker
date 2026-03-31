@@ -296,7 +296,7 @@ class HostedConfigFile():
             locn['_last_etag'] = etag
             locn['_last_version_id'] = version_id
             outFile.write(contents)
-            logger.debug(f"Got file from S3 bucket={bucket} key={key} ETag={etag}")
+            logger.info(f"S3 read OK: bucket={bucket} key={key} ETag={etag}")
             return True
         except ClientError as excp:
             error_code = excp.response['Error']['Code']
@@ -346,7 +346,7 @@ class HostedConfigFile():
                 locn['_last_version_id'] = head.get('VersionId', '')
             except Exception:
                 pass
-            logger.debug(f"Put file to S3 bucket={bucket} key={key}")
+            logger.info(f"S3 write OK: bucket={bucket} key={key}")
             return True
         except ClientError as excp:
             logger.warn(f"S3 put failed: bucket={bucket} key={key} error={excp}")

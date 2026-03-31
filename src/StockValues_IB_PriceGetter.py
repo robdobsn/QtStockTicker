@@ -62,7 +62,7 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         # A lock for the dictionary used to access symbol values
         self.mapsLock = threading.Lock()
 
-    def error(self, reqId:int, errorTime:int, errorCode:int, errorString:str, advancedOrderRejectJson=""):
+    def error(self, reqId:int, errorCode:int, errorString:str):
         if errorCode == 200 or errorCode == 504: # security not found OR not connected
             with self.mapsLock:
                 if reqId in self._mapPriceReqIdToStockInfo:
