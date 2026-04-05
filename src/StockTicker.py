@@ -25,6 +25,7 @@ from LocalConfig import LocalConfig
 from HostedConfigFile import HostedConfigFile
 from ResourcePath import getResourcePath
 from StockProviderManager import StockProviderManager
+from app_version import __version__ as APP_VERSION
 
 '''
 Created on 4 Sep 2013
@@ -237,8 +238,8 @@ class RStockTicker(QtWidgets.QMainWindow):
         # Add main splitter - this is the correct way for QMainWindow
         self.setCentralWidget(self.mainSplitter)
 
-        # Window title
-        self.windowTitle = 'Stock Ticker'
+        # Window title (version shown in title bar; market status appended periodically in updateStockValues)
+        self.windowTitle = f"Stock Ticker {APP_VERSION}"
         self.setWindowTitle(self.windowTitle)
         self.resize(1280,800)
         if self._dumpMode:
@@ -342,7 +343,7 @@ class RStockTicker(QtWidgets.QMainWindow):
         if (self.ticksBeforeMarketOpenCheck == 0):
             stat = self.stockValues.getMarketOpenStatus()
             if stat != "":
-                newWindowTitle = 'Stock Ticker - ' + stat
+                newWindowTitle = f"Stock Ticker {APP_VERSION} - {stat}"
                 if self.windowTitle != newWindowTitle:
                     self.windowTitle = newWindowTitle
                     self.setWindowTitle(self.windowTitle)

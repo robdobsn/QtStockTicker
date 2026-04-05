@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "QtStockTicker"
-version = "3.0"
+version = "3.0.0"
 description = "Stock Ticker - real-time stock price display using PySide6"
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -29,6 +29,7 @@ ibapi = { path = "vendor_ibapi" }
 
 [tool.setuptools]
 py-modules = [
+    "app_version",
     "StockTicker",
     "ExchangeRates",
     "ExDivDates",
@@ -42,7 +43,6 @@ py-modules = [
     "StockSettingsDialog",
     "StockSymbolList",
     "StockTable",
-    "StockValues_Google",
     "StockValues_IB_MarketDataClient",
     "StockValues_IB_MarketDataWrapper",
     "StockValues_IB_PriceGetter",

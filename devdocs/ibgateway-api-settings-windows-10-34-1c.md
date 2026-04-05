@@ -1,5 +1,8 @@
 # IB Gateway API Settings - Windows 10.34.1c
 
+Screenshots of **Edit → Global Configuration → API** on this build. IBKR changes labels between versions; Linux vs Windows can differ (e.g. Trusted IPs).
+
+See also: `devevals/ib_connect_test.py` (troubleshooting hints reference these sections).
 
 ## General
 

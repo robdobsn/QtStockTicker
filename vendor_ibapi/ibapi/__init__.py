@@ -13,9 +13,8 @@ VERSION = {
 
 
 def get_version_string():
-    version = '{major}.{minor}.{patch}-{extra}'.format(**VERSION)
-    if( VERSION['extra'] <= 0):
-        version = '{major}.{minor}.{patch}'.format(**VERSION)
-    return version
+    if VERSION["extra"] <= 0:
+        return "{major}.{minor}.{patch}".format(**VERSION)
+    return "{major}.{minor}.{patch}.post{extra}".format(**VERSION)
 
 __version__ = get_version_string()

@@ -15,6 +15,26 @@ from StockValues_IB_MarketDataClient import StockValues_IB_MarketDataClient
 
 logger = logging.getLogger("StockTickerLogger")
 
+# IB sends these via error(); wire severity is often INFO — farms OK, connecting, or idle/on-demand.
+_IB_INFO_STATUS_CODES = frozenset({2104, 2106, 2107, 2119, 2158})
+
+
+def _normalize_yahoo_lse_base_for_ib(base: str) -> str:
+    """
+    Map the Yahoo Finance UK ticker *base* (the part before '.L') to IB's LSE local symbol.
+
+    Yahoo often uses a hyphen for share classes (e.g. BT-A.L); IB's LSE symbol for the same line
+    is usually dotted (BT.A). Two-character LSE tickers typically need a trailing dot on IB
+    (AV.L -> AV., RM.L -> RM.).
+    """
+    base = base.strip().upper()
+    if "-" in base:
+        base = base.replace("-", ".")
+    if len(base) == 2 and base.isalnum():
+        base = base + "."
+    return base
+
+
 class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_IB_MarketDataClient):
 
     def __init__(self, ipaddress, portid, clientid, symbolChangedCallback):
@@ -27,11 +47,12 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         self._mapPriceReqIdToStockInfo = {}
         self._mapSymbolToPriceReqId = {}
         self._mapDetailsReqIdToPriceReqId = {}
+        # Per-symbol overrides when Yahoo / UI string still does not match IB (renames, ADRs, etc.).
         self._IB_SymbolMappings = {
             "INDEXSP:.INX": { "symbol": "SPX", "exchange": "CBOE", "currency":"USD", "secType":"IND" },
             "INDEXDJX:.DJI": {"symbol": "INDU", "exchange": "NYSE", "currency": "USD", "secType": "IND"},
             # "INDEXFTSE:UKX": {"symbol": "TICK-LSE", "exchange": "LSE", "currency": "GBP", "secType": "IND"},
-            "AV-B.L": {"symbol": "AV.B", "exchange": "LSE", "currency": "GBP", "secType": "STK"},
+            "AV-B.L": {"symbol": "AV.B", "exchange": "SMART", "primaryExchange": "LSE", "currency": "GBP", "secType": "STK"},
         }
         self.setTickCodes()
         self._symbolChangedCallback = symbolChangedCallback
@@ -63,16 +84,35 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         self.mapsLock = threading.Lock()
 
     def error(self, reqId:int, errorCode:int, errorString:str):
+        if errorCode in _IB_INFO_STATUS_CODES:
+            logger.debug("StockValues_IB: IB status %s %s", errorCode, errorString)
+            return
         if errorCode == 200 or errorCode == 504: # security not found OR not connected
+            sym_for_callback = None
             with self.mapsLock:
                 if reqId in self._mapPriceReqIdToStockInfo:
-                    sym = self._mapPriceReqIdToStockInfo[reqId]["ySymbol"]
-                    logger.warn(f"StockValues_IB: ERROR reqId {reqId} Symbol not matched {sym} errorMsg {errorString}")
+                    info = self._mapPriceReqIdToStockInfo[reqId]
+                    sym = info["ySymbol"]
+                    logger.warning(
+                        "StockValues_IB: error %s — no contract for ySymbol=%r IB symbol=%s exchange=%s "
+                        "primaryExchange=%s currency=%s | %s",
+                        errorCode,
+                        sym,
+                        info.get("symbol"),
+                        info.get("exchange"),
+                        info.get("primaryExchange"),
+                        info.get("currency"),
+                        errorString,
+                    )
                     self._mapPriceReqIdToStockInfo.pop(reqId)
                     if sym in self._mapSymbolToPriceReqId:
                         self._mapSymbolToPriceReqId.pop(sym)
+                    sym_for_callback = sym
                 else:
                     logger.warn(f"StockValues_IB: unknown symbol reqId {reqId} errorMsg {errorString}")
+            # After dropping the contract, notify the app so StockProviderManager can fall back (e.g. to Yahoo API).
+            if sym_for_callback is not None:
+                self._symbolChangedCallback(sym_for_callback)
         else:
             if reqId == -1:
                 logger.warn(f"StockValues_IB: ERROR msgCode {errorCode} msgStr {errorString}")
@@ -158,20 +198,20 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
                 stkInfo[key] = val
         else:
             # Split YSymbol apart to find underlying exchange and symbol
-            # Attempt to handle Yahoo style ticker symbols
+            # Yahoo: *.L = London; hyphens in base (BT-A.L) -> IB dots (BT.A); see _normalize_yahoo_lse_base_for_ib
             dotPos = ySymbol.rfind(".")
             if dotPos > 0:
-                if ySymbol[dotPos+1:] == "L":
-                    stkInfo["exchange"] = "LSE"
+                suffix = ySymbol[dotPos + 1 :]
+                if suffix.upper() == "L":
+                    base = ySymbol[:dotPos]
+                    stkInfo["exchange"] = "SMART"
+                    stkInfo["primaryExchange"] = "LSE"
                     stkInfo["currency"] = "GBP"
-                    symb = ySymbol[:dotPos]
-                    if len(symb) == 2:
-                        symb += "."
-                    stkInfo["symbol"] = symb.upper()
+                    stkInfo["symbol"] = _normalize_yahoo_lse_base_for_ib(base)
             else:
                 atPos = ySymbol.rfind("@")
                 if atPos > 0:
-                    stkInfo["primaryExchange"] = ySymbol[atPos+1:]
+                    stkInfo["primaryExchange"] = ySymbol[atPos + 1 :]
                     symb = ySymbol[:atPos]
                     if len(symb) == 2:
                         symb += "."
@@ -272,6 +312,28 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
                     symbolDataChanged = self.setValInStockDict(sym, "open", price, stockInfo)
                     if "price" not in stockInfo or stockInfo["price"] is None:
                         self.setValInStockDict(sym, "price", price, stockInfo)
+                elif tickType == 66:  # delayed bid (off-hours / no live subscription)
+                    self.setValInStockDict(sym, "bid_price", price, stockInfo)
+                elif tickType == 67:  # delayed ask
+                    self.setValInStockDict(sym, "ask_price", price, stockInfo)
+                elif tickType == 68:  # delayed last — critical when LAST (4) is not sent
+                    symbolDataChanged = self.setValInStockDict(sym, "price", price, stockInfo)
+                    if symbolDataChanged:
+                        self.setChangeInStockDict(sym, stockInfo)
+                elif tickType == 72:  # delayed high
+                    symbolDataChanged = self.setValInStockDict(sym, "high", price, stockInfo)
+                elif tickType == 73:  # delayed low
+                    symbolDataChanged = self.setValInStockDict(sym, "low", price, stockInfo)
+                elif tickType == 75:  # delayed close
+                    symbolDataChanged = self.setValInStockDict(sym, "close", price, stockInfo)
+                    if "price" not in stockInfo or stockInfo["price"] is None:
+                        self.setValInStockDict(sym, "price", price, stockInfo)
+                    if symbolDataChanged:
+                        self.setChangeInStockDict(sym, stockInfo)
+                elif tickType == 76:  # delayed open
+                    symbolDataChanged = self.setValInStockDict(sym, "open", price, stockInfo)
+                    if "price" not in stockInfo or stockInfo["price"] is None:
+                        self.setValInStockDict(sym, "price", price, stockInfo)
                 else:
                     logger.warn(f"StockValues_IB: Unhandled tickPrice {tickType} price {price}")
                 if symbolDataChanged:
@@ -306,6 +368,8 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
                     self.setValInStockDict(sym, "last_size", size, stockInfo)
                 elif tickType == 8:  # volume
                     symbolDataChanged = self.setValInStockDict(sym, "volume", size, stockInfo)
+                elif tickType == 74:  # delayed volume
+                    symbolDataChanged = self.setValInStockDict(sym, "volume", size, stockInfo)
                 else:
                     logger.warn(f"StockValues_IB: Unhandled tickSize {tickType} size {size}")
                 if symbolDataChanged:
@@ -314,6 +378,15 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         # Callback if data has changed
         if symbolDataChanged is not None:
             self._symbolChangedCallback(symbolDataChanged)
+
+    def marketDataType(self, reqId: int, marketDataType: int) -> None:
+        """IB announces live/frozen/delayed; off-hours often uses delayed tick types 66–76."""
+        _md = {1: "Live", 2: "Frozen", 3: "Delayed", 4: "DelayedFrozen"}
+        logger.debug(
+            "StockValues_IB: marketDataType reqId=%s %s",
+            reqId,
+            _md.get(marketDataType, marketDataType),
+        )
 
     def tickString(self, reqId:int, tickType:int, value:str):
         if self.DEBUG_IB_TICK_VALUES and tickType in self.tickCodes:
@@ -333,14 +406,18 @@ class StockValues_IB_PriceGetter(StockValues_IB_MarketDataWrapper, StockValues_I
         logger.info(f"StockValues_IB: Unhandled tickSnapshotEnd {reqId}")
 
     def contractDetails(self, reqId:int, contractDetails):
-        self.mapsLock.acquire()
-        if reqId in self._mapDetailsReqIdToPriceReqId:
-            priceReqId = self._mapDetailsReqIdToPriceReqId[reqId]
-            if priceReqId in self._mapPriceReqIdToStockInfo:
-                stockInfo = self._mapPriceReqIdToStockInfo[priceReqId]
-                stockInfo["name"] = contractDetails.longName
-                self._symbolChangedCallback(stockInfo["ySymbol"])
-        self.mapsLock.release()
+        # Must not call _symbolChangedCallback while holding mapsLock: the callback chain calls
+        # getStockInfoData(), which acquires the same lock — non-reentrant Lock would deadlock.
+        sym = None
+        with self.mapsLock:
+            if reqId in self._mapDetailsReqIdToPriceReqId:
+                priceReqId = self._mapDetailsReqIdToPriceReqId[reqId]
+                if priceReqId in self._mapPriceReqIdToStockInfo:
+                    stockInfo = self._mapPriceReqIdToStockInfo[priceReqId]
+                    stockInfo["name"] = contractDetails.longName
+                    sym = stockInfo["ySymbol"]
+        if sym is not None:
+            self._symbolChangedCallback(sym)
 
     def contractDetailsEnd(self, reqId:int):
         pass

@@ -7,7 +7,7 @@ QtStockTicker is a PySide6 (Qt 6) desktop application that displays real-time st
 ```
 ┌──────────────────────────────────────────────────────┐
 │  Stock Data Providers (background threads)           │
-│  Yahoo API · Google Finance · Interactive Brokers    │
+│  Yahoo API · Interactive Brokers                    │
 └────────────────────┬─────────────────────────────────┘
                      │ symbolDataChanged() callbacks
                      ▼
@@ -39,7 +39,6 @@ All Python source files live under `src/`:
 | `StockTable.py` | QTableWidget subclass — rendering, colour coding, flash animations |
 | `StockProviderManager.py` | Provider orchestration, fallback chain, change tracking |
 | `StockValues_YahooAPI.py` | Yahoo Finance provider (RapidAPI HTTP) |
-| `StockValues_Google.py` | Google Finance provider (HTML scraping) |
 | `StockValues_InteractiveBrokers.py` | Interactive Brokers provider (socket API) |
 | `StockValues_IB_*.py` | IB helper modules (market data client, wrapper, price getter) |
 | `StockValues_Test.py` | Test provider with simulated data |
@@ -60,7 +59,6 @@ All Python source files live under `src/`:
 |---|---|---|
 | **Main (UI)** | QTimer fires `updateStockValues()` | Every 2 seconds |
 | **Yahoo API** | HTTP requests to RapidAPI in batches of ≤10 symbols | ~1 s sleep between batches |
-| **Google Finance** | HTML scraping per symbol | ~1 s sleep between symbols |
 | **Interactive Brokers** | Socket streaming via IB API | Continuous |
 | **ExDivDates** | Selenium scrape of dividend info | Once daily (configurable hour) |
 | **Exchange Rates** | fixer.io API call | Every 10 hours (disabled by default) |
@@ -103,7 +101,7 @@ Every 2 seconds the main-thread QTimer fires `RStockTicker.updateStockValues()`:
 The fallback chain is configured in `privatesettings/config.ini`:
 
 ```ini
-STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,google
+STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,interactive_brokers
 ```
 
 Only providers listed in the chain are initialised. Symbols can optionally specify a preferred provider via the `stock_provider` field in the stock list JSON; otherwise they follow the chain order. When a provider fails to return valid data (null/zero price or non-zero `failCount`), the symbol is automatically reassigned to the next provider in the chain.

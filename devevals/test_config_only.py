@@ -45,8 +45,10 @@ def test_fallback_chain_config():
                 return
             
             # Normal mode - load unified fallback configuration
-            fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api,google")
-            self.unified_fallback_chain = [p.strip() for p in fallback_chain_str.split(',') if p.strip()]
+            fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api")
+            self.unified_fallback_chain = [p.strip() for p in fallback_chain_str.split(",") if p.strip()]
+            if "google" in self.unified_fallback_chain:
+                self.unified_fallback_chain = [p for p in self.unified_fallback_chain if p != "google"]
             
             # Use the unified fallback chain as the default provider order
             self.provider_order = self.unified_fallback_chain.copy()
@@ -73,7 +75,7 @@ def test_fallback_chain_config():
         
         def _getFallbackChainForSymbol(self, symbol, preferred_provider):
             """Get the fallback chain for a symbol"""
-            if preferred_provider and preferred_provider in ['interactive_brokers', 'yahoo_api', 'google', 'test']:
+            if preferred_provider and preferred_provider in ['interactive_brokers', 'yahoo_api', 'test']:
                 # Start with preferred provider, then continue with the rest of the unified chain
                 # excluding the preferred provider to avoid duplicates
                 chain = [preferred_provider]

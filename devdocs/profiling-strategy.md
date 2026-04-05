@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines a strategy for identifying CPU and memory bottlenecks in the QtStockTicker application. The app is a PySide6 GUI with multiple background threads fetching stock data from Yahoo Finance, Interactive Brokers, and Google Finance, with a 2-second UI refresh cycle driving 6 table widgets.
+This document outlines a strategy for identifying CPU and memory bottlenecks in the QtStockTicker application. The app is a PySide6 GUI with multiple background threads fetching stock data from Yahoo Finance and Interactive Brokers, with a 2-second UI refresh cycle driving 6 table widgets.
 
 ---
 
@@ -14,7 +14,6 @@ This document outlines a strategy for identifying CPU and memory bottlenecks in 
 | `StockTable.updateTable()` | Main thread (Qt requirement) | Cell-by-cell rendering: setText, setBackground, setFont, Decimal math |
 | Yahoo provider (`src/StockValues_YahooAPI.py`) | Dedicated background thread | Network I/O, lock contention on `self.lock` |
 | IB provider (`src/StockValues_InteractiveBrokers.py`) | 2 background threads (event loop + request thread) | Persistent TCP, callback latency, lock contention |
-| Google provider (`src/StockValues_Google.py`) | Dedicated background thread | Web scraping overhead |
 | `src/HostedConfigFile.py` | Synchronous on startup | Blocks UI while fetching from FTP/HTTP/S3 |
 | `src/ExDivDates.py` | Separate thread with Selenium | Headless Chrome startup/memory |
 | `src/StockSymbolList.py` | Called on-demand | BeautifulSoup HTML parsing |
@@ -214,7 +213,7 @@ Use these configurations to isolate variables during profiling:
 | **UI-only** | Profile rendering without network | `TEST_MODE=true` in config.ini |
 | **Minimal stocks** | Reduce data volume | Use a stocklist.json with 2-3 symbols |
 | **Maximum stocks** | Stress test | Load 50+ symbols to see scaling |
-| **Single provider** | Isolate provider overhead | Set `STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api` (or `interactive_brokers`, or `google`) |
+| **Single provider** | Isolate provider overhead | Set `STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api` (or `interactive_brokers`) |
 | **Fast timer** | Stress UI rendering | Temporarily change timer interval from 2000ms to 200ms |
 | **Market closed** | Profile idle behaviour | Run outside market hours; verify CPU drops to near-zero |
 

@@ -1,4 +1,8 @@
-# IB Gateway API Settings
+# IB Gateway API Settings (Linux snapshot)
+
+Screenshots of **Edit → Global Configuration → API** on this install. IBKR changes labels between versions; compare with your build.
+
+See also: `devevals/ib_connect_test.py` (troubleshooting hints reference these sections).
 
 ## General
 
@@ -44,3 +48,11 @@
 - 192.168.86.247
 - 127.0.0.0/16
 - 172.29.0.0/16
+
+## Notes (Python ibapi / connect test)
+
+- **Environment**: `IB_HOST`, `IB_PORT`, `IB_CLIENT_ID` match `StockProviderManager` / `devevals/ib_connect_test.py` (defaults `127.0.0.1`, `4001`, `10`). Use a unique client id per app if multiple processes connect.
+- **Farm / HMDS status codes** (not failures; app logs them at debug only): **2104** / **2106** / **2158** (“… connection is OK” for market data, HMDS, sec-def); **2107** (HMDS inactive but available on demand — common when not using historical data); **2119** (“Market data farm is connecting:…”). The official `EWrapper.error` still logs these at ERROR.
+- **Code 200** (“No security definition has been found”): real contract/symbol problems — fix the ticker, exchange, or `StockValues_IB_PriceGetter` / `makeStockInfo` mapping; do not silence these.
+- After **`ib_connect_test.py`** succeeds, it calls `disconnect()`; Gateway logs may show the API session ending — that is the script closing, not a rejected connection.
+

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script to verify if stock symbols work with Yahoo API and whether fallback to Google is needed.
+Test script to verify if stock symbols work with Yahoo API (and whether another provider may be needed for some symbols).
 """
 
 import logging
@@ -84,7 +84,7 @@ def test_yahoo_api_symbols():
         print("\n=== Summary ===")
         print("If many UK stocks (.L suffix) are failing, this indicates Yahoo API")
         print("may not have good coverage for London Stock Exchange symbols.")
-        print("The fallback to Google should help with this.")
+        print("Consider Interactive Brokers or another data source for those symbols.")
         
     except ImportError as e:
         print(f"❌ Failed to import required modules: {e}")

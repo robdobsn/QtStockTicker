@@ -1,9 +1,9 @@
 import logging
+import os
 import threading
 import time
 from StockValues_YahooAPI import StockValues_YahooAPI
 from StockValues_InteractiveBrokers import StockValues_InteractiveBrokers
-from StockValues_Google import StockValues_Google
 from StockValues_Test import StockValues_Test
 
 logger = logging.getLogger("StockTickerLogger")
@@ -11,7 +11,7 @@ logger = logging.getLogger("StockTickerLogger")
 class StockProviderManager:
     """
     Manages multiple stock data providers with intelligent fallback logic.
-    Handles symbol routing and failover between Yahoo API, Interactive Brokers, and Google.
+    Handles symbol routing and failover between Yahoo API and Interactive Brokers.
     """
     
     def __init__(self, symbolChangedCallback, config_manager=None):
@@ -64,8 +64,8 @@ class StockProviderManager:
             return
         
         # Normal mode - get the fallback chain to determine which providers to initialize
-        fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api,google")
-        needed_providers = [p.strip() for p in fallback_chain_str.split(',') if p.strip()]
+        fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api")
+        needed_providers = self._parseFallbackChainList(fallback_chain_str)
         
         logger.info(f"Initializing only providers in fallback chain: {needed_providers}")
         
@@ -87,7 +87,18 @@ class StockProviderManager:
         # Initialize Interactive Brokers provider if needed
         if 'interactive_brokers' in needed_providers:
             try:
-                self.providers['interactive_brokers'] = StockValues_InteractiveBrokers()
+                ib_host = self._env_or_config("IB_HOST", "127.0.0.1")
+                ib_port = int(self._env_or_config("IB_PORT", "4001"))
+                ib_client_id = int(self._env_or_config("IB_CLIENT_ID", "10"))
+                logger.info(
+                    f"Interactive Brokers API target {ib_host}:{ib_port} clientId={ib_client_id} "
+                    f"(set IB_HOST/IB_PORT/IB_CLIENT_ID in privatesettings/config.ini or environment)"
+                )
+                self.providers['interactive_brokers'] = StockValues_InteractiveBrokers(
+                    ib_host=ib_host,
+                    ib_port=ib_port,
+                    ib_client_id=ib_client_id,
+                )
                 # Set the callback using the new setCallback method
                 def safe_callback(symbol, stock_data=None):
                     try:
@@ -101,14 +112,6 @@ class StockProviderManager:
                 logger.info("Interactive Brokers provider initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Interactive Brokers provider: {e}")
-        
-        # Initialize Google provider if needed
-        if 'google' in needed_providers:
-            try:
-                self.providers['google'] = StockValues_Google(self._providerSymbolChanged)
-                logger.info("Google provider initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize Google provider: {e}")
     
     def _loadFallbackConfig(self):
         """Load fallback configuration from config.ini"""
@@ -123,8 +126,8 @@ class StockProviderManager:
             return
         
         # Normal mode - load unified fallback configuration
-        fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api,google")
-        self.unified_fallback_chain = [p.strip() for p in fallback_chain_str.split(',') if p.strip()]
+        fallback_chain_str = self._readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api")
+        self.unified_fallback_chain = self._parseFallbackChainList(fallback_chain_str)
         
         # Use the unified fallback chain as the default provider order
         self.provider_order = self.unified_fallback_chain.copy()
@@ -132,6 +135,13 @@ class StockProviderManager:
         logger.info(f"Unified fallback chain: {self.unified_fallback_chain}")
         logger.info(f"Default provider order: {self.provider_order}")
     
+    def _env_or_config(self, key, default=""):
+        """Environment variable overrides privatesettings/config.ini."""
+        v = os.environ.get(key)
+        if v is not None and str(v).strip() != "":
+            return str(v).strip()
+        return self._readConfigValue(key, default)
+
     def _readConfigValue(self, key, default=""):
         """Read value from config.ini"""
         if not self.config_manager:
@@ -152,7 +162,18 @@ class StockProviderManager:
             logger.debug(f"Could not read {key} from config.ini: {e}")
         
         return default
-    
+
+    def _parseFallbackChainList(self, fallback_chain_str):
+        """Parse comma-separated provider names; drops deprecated entries."""
+        parts = [p.strip() for p in fallback_chain_str.split(",") if p.strip()]
+        if "google" in parts:
+            logger.warning(
+                "STOCK_PROVIDER_FALLBACK_CHAIN lists deprecated 'google'; "
+                "the Google Finance provider was removed — ignoring it"
+            )
+            parts = [p for p in parts if p != "google"]
+        return parts
+
     def setStocks(self, stockList):
         """
         Set the list of stocks to monitor.
@@ -205,6 +226,12 @@ class StockProviderManager:
                 preferred_provider = item.get('stock_provider', '').strip()
                 if not preferred_provider:
                     preferred_provider = None
+                elif preferred_provider == "google":
+                    logger.warning(
+                        "stock_provider 'google' is no longer supported for %s; using 'yahoo_api'",
+                        symbol,
+                    )
+                    preferred_provider = "yahoo_api"
             else:
                 logger.warn(f"Invalid stock item format: {item}")
                 continue
@@ -273,7 +300,8 @@ class StockProviderManager:
     def _providerSymbolChanged(self, symbol, stock_data=None):
         """Called when a provider reports data change for a symbol"""
         logger.log(5, f"_providerSymbolChanged called for symbol: {symbol}")
-        
+        current_provider = self.symbol_to_provider.get(symbol)
+
         # If stock data was passed directly, use it
         if stock_data is not None:
             logger.log(5, f"_providerSymbolChanged: Using provided stock data for {symbol}")
@@ -281,15 +309,14 @@ class StockProviderManager:
         else:
             # Fall back to retrieving data from provider (for backwards compatibility)
             logger.log(5, f"_providerSymbolChanged: Retrieving data from provider for {symbol}")
-            current_provider = self.symbol_to_provider.get(symbol)
             if not current_provider:
                 logger.warn(f"_providerSymbolChanged: No provider assigned for symbol {symbol}")
                 return
-            
+
             logger.log(5, f"_providerSymbolChanged: Getting data from provider {current_provider} for {symbol}")
             provider = self.providers[current_provider]
             symbol_data = None
-            
+
             # Get data from the provider
             try:
                 if hasattr(provider, 'getStockData'):
@@ -303,24 +330,32 @@ class StockProviderManager:
                 logger.warn(f"Error getting data for {symbol} from {current_provider}: {e}")
                 logger.debug(f"Exception details:", exc_info=True)
                 return
-        
+
         # Check if we got valid data
         logger.log(5, f"_providerSymbolChanged: Checking if data is valid for {symbol}")
-        
+
         if symbol_data and self._isValidStockData(symbol_data):
             logger.log(5, f"_providerSymbolChanged: Got valid data for {symbol}, updating cache")
             # Update our cache and notify the main application
             with self.lock:
                 self.stockData[symbol] = symbol_data
                 self._symbolsChangedSinceUIUpdate.add(symbol)
-            
+
             logger.log(5, f"_providerSymbolChanged: Calling symbolChangedCallback for {symbol}")
             # Notify the main application
             self.symbolChangedCallback(symbol)
         else:
-            # Provider failed to get data, try fallback
-            logger.info(f"No valid data from {current_provider} for {symbol}, trying fallback")
             logger.log(5, f"Validation failure for {symbol}: data={symbol_data}")
+            # Interactive Brokers often sends volume, contract name, or marketDataType before the first
+            # price tick. Do not treat that as provider failure or symbols migrate to the next fallback
+            # provider before LAST/CLOSE/delayed last arrives.
+            if not self._shouldAttemptProviderFallback(symbol, symbol_data, current_provider):
+                return
+            logger.info(
+                "No usable quote for %s from %s after non-streaming failure; trying fallback",
+                symbol,
+                current_provider,
+            )
             self._tryFallbackProvider(symbol)
     
     def _isValidStockData(self, data):
@@ -348,7 +383,28 @@ class StockProviderManager:
         logger.debug("_isValidStockData: Data is valid")
         # Additional validation can be added here
         return True
-    
+
+    def _shouldAttemptProviderFallback(self, symbol, symbol_data, current_provider):
+        """
+        Return False when Interactive Brokers has delivered a partial row (e.g. volume or name) but no price tick yet.
+        In that case we must not migrate the symbol to the next fallback provider before LAST/CLOSE/delayed last arrives.
+        If symbol_data is entirely missing, allow fallback (e.g. IB dropped the subscription).
+        """
+        if symbol_data and symbol_data.get("failCount", 0) > 0:
+            return True
+        if current_provider != "interactive_brokers":
+            return True
+        if not symbol_data:
+            return True
+        price = symbol_data.get("price")
+        if price is None or price == 0:
+            logger.debug(
+                "StockProviderManager: awaiting first price tick for %s on IB (got partial update); not falling back",
+                symbol,
+            )
+            return False
+        return True
+
     def _tryFallbackProvider(self, symbol):
         """Try the next provider in the fallback chain for a symbol"""
         current_provider = self.symbol_to_provider.get(symbol)

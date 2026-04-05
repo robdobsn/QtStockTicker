@@ -51,7 +51,7 @@ def test_unified_fallback_system():
         # Dictionary symbols with preferred providers
         {"symbol": "GOOGL", "stock_provider": "yahoo_api"},
         {"symbol": "TSLA", "stock_provider": "interactive_brokers"},
-        {"symbol": "AMZN", "stock_provider": "google"},
+        {"symbol": "AMZN", "stock_provider": "yahoo_api"},
         
         # Dictionary symbol without stock_provider (will use unified fallback chain)
         {"symbol": "NVDA", "holding": 100, "cost": 500},

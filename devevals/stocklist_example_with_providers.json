@@ -30,7 +30,7 @@
             "symbol": "TSLA",
             "holding": 30.0,
             "cost": 800.0,
-            "stock_provider": "google",
+            "stock_provider": "yahoo_api",
             "exDivDate": "",
             "exDivAmount": 0.0,
             "paymentDate": ""

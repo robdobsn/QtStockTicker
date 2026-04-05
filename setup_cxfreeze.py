@@ -11,7 +11,7 @@ if sys.platform == "win32":
     base = "Win32GUI"
 
 setup(  name = "QtStockTicker",
-        version = "3.0",
+        version = "3.0.0",
         description = "Stock Ticker",
         options = {"build_exe": build_exe_options},
         executables = [Executable("src/StockTicker.py", base=base)])

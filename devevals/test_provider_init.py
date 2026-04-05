@@ -41,7 +41,6 @@ def test_provider_initialization():
     import sys
     sys.modules['StockValues_YahooAPI'] = type('Module', (), {'StockValues_YahooAPI': lambda callback: MockProvider('YahooAPI', callback)})
     sys.modules['StockValues_InteractiveBrokers'] = type('Module', (), {'StockValues_InteractiveBrokers': lambda: MockProvider('InteractiveBrokers')})
-    sys.modules['StockValues_Google'] = type('Module', (), {'StockValues_Google': lambda callback: MockProvider('Google', callback)})
     sys.modules['StockValues_Test'] = type('Module', (), {'StockValues_Test': lambda: MockProvider('Test')})
     
     # Now we can import and test
@@ -79,8 +78,10 @@ def test_provider_initialization():
         providers['test'] = MockProvider('Test')
     else:
         # Normal mode - get the fallback chain to determine which providers to initialize
-        fallback_chain_str = _readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api,google")
-        needed_providers = [p.strip() for p in fallback_chain_str.split(',') if p.strip()]
+        fallback_chain_str = _readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "interactive_brokers,yahoo_api")
+        needed_providers = [p.strip() for p in fallback_chain_str.split(",") if p.strip()]
+        if "google" in needed_providers:
+            needed_providers = [p for p in needed_providers if p != "google"]
         
         print(f"Fallback chain from config: {needed_providers}")
         print("Initializing providers...")
@@ -98,16 +99,14 @@ def test_provider_initialization():
             providers['interactive_brokers'] = MockProvider('InteractiveBrokers')
             providers['interactive_brokers'].setCallback(test_callback)
         
-        # Initialize Google provider if needed
-        if 'google' in needed_providers:
-            providers['google'] = MockProvider('Google', test_callback)
-    
     print(f"\nInitialized providers: {list(providers.keys())}")
     
     # Verify correct behavior
-    config_chain = _readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "").split(',')
+    config_chain = _readConfigValue("STOCK_PROVIDER_FALLBACK_CHAIN", "").split(",")
     config_chain = [p.strip() for p in config_chain if p.strip()]
-    
+    if "google" in config_chain:
+        config_chain = [p for p in config_chain if p != "google"]
+
     print(f"Expected providers based on config: {config_chain}")
     
     if set(providers.keys()) == set(config_chain):

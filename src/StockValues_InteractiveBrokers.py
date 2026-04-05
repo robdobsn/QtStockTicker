@@ -21,15 +21,15 @@ class StockValues_InteractiveBrokers:
     
     bOnlyUpdateWhileMarketOpen = False
     
-    def __init__(self, callback=None):
+    def __init__(self, callback=None, ib_host="127.0.0.1", ib_port=4001, ib_client_id=10):
         self.openhour = 8
         self.openmin = 0
         self.closehour = 16
         self.closemin = 30
         self.tradingdow = 0, 1, 2, 3, 4
         
-        # Initialize the IB price getter
-        self._priceGetter = StockValues_IB_PriceGetter("127.0.0.1", 4001, 10, self.symbolDataChanged)
+        # Initialize the IB price getter (host/port/clientId match IB Gateway: Configure → Settings → API)
+        self._priceGetter = StockValues_IB_PriceGetter(ib_host, ib_port, ib_client_id, self.symbolDataChanged)
         
         # State tracking for provider interface compatibility
         self._dictOfStocksChangedSinceUIUpdate = {}

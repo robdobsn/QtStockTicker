@@ -1,7 +1,7 @@
 # QtStockTicker
-by Rob Dobson 2013, updated 2024
+by Rob Dobson 2013, updated 2026
 
-Real-time stock price display built with PySide6 (Qt 6). Supports multiple data providers (Yahoo Finance API, Google Finance, Interactive Brokers) with automatic failover.
+Real-time stock price display built with PySide6 (Qt 6). Supports multiple data providers (Yahoo Finance API, Interactive Brokers) with automatic failover.
 
 See [docs/technical-overview.md](docs/technical-overview.md) for a detailed description of the architecture and data flow.
 
@@ -73,7 +73,7 @@ The system is configured via the `config.ini` file in the `privatesettings` fold
 
 ```ini
 # Single unified fallback chain for all scenarios
-STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,google
+STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,interactive_brokers
 
 # Test Mode - Use test provider only
 TEST_MODE=false
@@ -133,22 +133,18 @@ Stock data is validated before being accepted:
 
 ### Available Providers
 - **`yahoo_api`** - Yahoo Finance via RapidAPI (requires API key)
-- **`google`** - Google Finance API 
 - **`interactive_brokers`** - Interactive Brokers API
 - **`test`** - Test provider with simulated data
 
 ### Provider Status
-Current implementation prioritizes:
-1. **Yahoo API** - Primary data source with comprehensive symbol coverage
-2. **Google** - Fallback for symbols not available via Yahoo API
-3. **Interactive Brokers** - Available but requires additional setup
+Typical setups use **Yahoo API** and/or **Interactive Brokers** in `STOCK_PROVIDER_FALLBACK_CHAIN`, depending on whether you use RapidAPI and/or IB Gateway.
 
 ## Configuration Examples
 
 ### Production Configuration (Yahoo Primary)
 ```ini
-# Yahoo API first, Google as fallback
-STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,google
+# Yahoo API first, Interactive Brokers as fallback
+STOCK_PROVIDER_FALLBACK_CHAIN=yahoo_api,interactive_brokers
 TEST_MODE=false
 YAHOO_FINANCE_API_KEY=your_rapidapi_key_here
 YAHOO_API_HOST=yahoo-finance15.p.rapidapi.com
@@ -163,8 +159,8 @@ STOCK_PROVIDER_FALLBACK_CHAIN=test
 
 ### Multi-Provider Configuration
 ```ini
-# All providers with Interactive Brokers primary
-STOCK_PROVIDER_FALLBACK_CHAIN=interactive_brokers,yahoo_api,google
+# Interactive Brokers primary, Yahoo API as fallback
+STOCK_PROVIDER_FALLBACK_CHAIN=interactive_brokers,yahoo_api
 TEST_MODE=false
 ```
 

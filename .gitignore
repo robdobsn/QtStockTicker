@@ -226,6 +226,27 @@ profile.svg
 .mr.developer.cfg
 
 #############
+## vendor_ibapi — full IB Python SDK extras (not in this repo)
+#############
+# QtStockTicker commits a minimal vendored copy under vendor_ibapi/ibapi/ plus pyproject.toml.
+# If you unpack or pip-install the full upstream API beside it, those extra files show as
+# untracked; they are safe to ignore unless you intentionally vendor more modules.
+vendor_ibapi/MANIFEST.in
+vendor_ibapi/README.md
+vendor_ibapi/setup.py
+vendor_ibapi/pylintrc
+vendor_ibapi/tox.ini
+vendor_ibapi/tests/
+vendor_ibapi/ibapi/protobuf/
+vendor_ibapi/ibapi/client_utils.py
+vendor_ibapi/ibapi/commission_and_fees_report.py
+vendor_ibapi/ibapi/const.py
+vendor_ibapi/ibapi/decoder_utils.py
+vendor_ibapi/ibapi/ibapi.pyproj
+vendor_ibapi/ibapi/ineligibility_reason.py
+vendor_ibapi/ibapi/order_cancel.py
+
+#############
 ## Project specific
 #############
 privatesettings/
